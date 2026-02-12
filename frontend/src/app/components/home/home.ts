@@ -1,4 +1,5 @@
 import { Component, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { SearchBar } from '../search-bar/search-bar';
 import { ResultsPanel } from '../results-panel/results-panel';
 import { ChatSidebar } from '../chat-sidebar/chat-sidebar';
@@ -18,7 +19,7 @@ export class Home {
   searchResponse = signal<SearchResponse | null>(null);
   error = signal('');
 
-  constructor(private searchService: SearchService) {}
+  constructor(private searchService: SearchService, private router: Router) {}
 
   onSearch(query: string): void {
     this.loading.set(true);
@@ -30,7 +31,11 @@ export class Home {
         this.searchResponse.set(res);
         this.loading.set(false);
       },
-      error: () => {
+      error: (err) => {
+        if (err.status === 503) {
+          this.router.navigateByUrl('/setup');
+          return;
+        }
         this.error.set('Search failed. Make sure the backend is running.');
         this.loading.set(false);
       },

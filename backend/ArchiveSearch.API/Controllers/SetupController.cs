@@ -57,11 +57,12 @@ public class SetupController(SetupState setupState, ILogger<SetupController> log
             Directory.CreateDirectory(dir);
             await System.IO.File.WriteAllTextAsync(setupState.LocalSettingsPath, json);
 
-            // Exit setup mode so subsequent requests work immediately
+            // Exit setup mode — the scoped AnthropicClient factory will pick up the
+            // new key from config (reloadOnChange: true) on subsequent requests.
             setupState.IsSetupMode = false;
 
             logger.LogInformation("API key saved to {Path}", setupState.LocalSettingsPath);
-            return Ok(new { success = true, message = "API key saved. Please restart the application." });
+            return Ok(new { success = true });
         }
         catch (Exception ex)
         {

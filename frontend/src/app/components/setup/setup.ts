@@ -54,9 +54,13 @@ import { Router } from '@angular/router';
             <p class="setup-error">{{ error() }}</p>
           }
 
+          @if (success()) {
+            <p class="setup-success">API key saved. Loading...</p>
+          }
+
           <button
             class="setup-submit"
-            [disabled]="saving() || !apiKey().trim()"
+            [disabled]="saving() || success() || !apiKey().trim()"
             (click)="save()"
           >
             @if (saving()) {
@@ -202,6 +206,17 @@ import { Router } from '@angular/router';
       line-height: 1.5;
     }
 
+    .setup-success {
+      margin: 0 0 16px;
+      padding: 10px 14px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      font-weight: 500;
+    }
+
     .setup-submit {
       display: flex;
       align-items: center;
@@ -247,6 +262,7 @@ export class Setup {
   apiKey = signal('');
   showKey = signal(false);
   saving = signal(false);
+  success = signal(false);
   error = signal('');
 
   constructor(
@@ -264,7 +280,8 @@ export class Setup {
     this.http.post<{ success: boolean }>('/api/setup/save', { apiKey: key }).subscribe({
       next: () => {
         this.saving.set(false);
-        this.router.navigateByUrl('/');
+        this.success.set(true);
+        setTimeout(() => this.router.navigateByUrl('/'), 1000);
       },
       error: (err) => {
         this.saving.set(false);

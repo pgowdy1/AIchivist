@@ -53,7 +53,8 @@ var appDataDir = Path.Combine(
     "AIchivist", "config");
 Directory.CreateDirectory(appDataDir);
 var localSettingsPath = Path.Combine(appDataDir, "appsettings.local.json");
-builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
+if (!builder.Environment.IsDevelopment())
+    builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
 
 // API key — check User Secrets, environment variable, and local config
 var anthropicApiKey = builder.Configuration["ANTHROPIC_API_KEY"];
@@ -72,10 +73,12 @@ builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArchiveContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Anthropic client — use real key or dummy for setup mode
-builder.Services.AddSingleton(new AnthropicClient
+// Anthropic client — scoped so each request gets the current key from config
+// (reloadOnChange picks up the key after first-run setup saves it to disk)
+builder.Services.AddScoped(_ =>
 {
-    ApiKey = isSetupMode ? "not-configured" : anthropicApiKey!
+    var key = builder.Configuration["ANTHROPIC_API_KEY"];
+    return new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(key) ? "not-configured" : key };
 });
 
 // Make setup state and config path available to controllers

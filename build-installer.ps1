@@ -95,10 +95,30 @@ Write-Host "Step 5: Verifying PostgreSQL binaries..." -ForegroundColor Yellow
 $pgCtl = Join-Path $pgsqlDir "bin\pg_ctl.exe"
 if (Test-Path $pgCtl) {
     Assert-Step $true "PostgreSQL binaries found at $pgsqlDir"
+
+    # Validate PostgreSQL version is 16.x
+    $pgVersion = & $pgCtl --version 2>&1
+    if ($pgVersion -match "16\.") {
+        Assert-Step $true "PostgreSQL version: $pgVersion"
+    } else {
+        Write-Host "  [WARN] Expected PostgreSQL 16, got: $pgVersion" -ForegroundColor DarkYellow
+        Write-Host "         Mismatched versions may cause runtime failures." -ForegroundColor DarkYellow
+    }
 } else {
     Write-Host "  [SKIP] PostgreSQL binaries not found at $pgsqlDir" -ForegroundColor DarkYellow
     Write-Host "         Download from https://www.enterprisedb.com/download-postgresql-binaries" -ForegroundColor DarkYellow
     Write-Host "         Extract pgsql/ directory to: $pgsqlDir" -ForegroundColor DarkYellow
+}
+
+# Check for pre-built database dump
+$dumpFile = Join-Path $root "installer\scripts\archive_search.dump"
+if (Test-Path $dumpFile) {
+    $dumpSizeMB = [math]::Round((Get-Item $dumpFile).Length / 1MB, 1)
+    Assert-Step $true "Database dump found (${dumpSizeMB}MB)"
+} else {
+    Write-Host "  [WARN] Database dump not found at: $dumpFile" -ForegroundColor DarkYellow
+    Write-Host "         The installed app will have an EMPTY database (no search data)." -ForegroundColor DarkYellow
+    Write-Host "         Generate a dump with: pg_dump -Fc archive_search > installer/scripts/archive_search.dump" -ForegroundColor DarkYellow
 }
 
 # ── Step 6: Compile Inno Setup installer ──────────────────────────────────

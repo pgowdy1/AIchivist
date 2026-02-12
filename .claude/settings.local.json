@@ -48,7 +48,21 @@
       "Bash(Select-Object FullName)",
       "Bash(find:*)",
       "Bash(docker ps:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(psql:*)",
+      "Bash(\"/c/Program Files/AIchivist/pgsql/bin/psql.exe\" -h localhost -p 5433 -U archive -d archive_search -c \"SELECT count\\(*\\) as total_collections FROM collections;\")",
+      "Bash(sc query:*)",
+      "Bash(\"/c/Program Files/AIchivist/pgsql/bin/pg_restore.exe\" --list \"c:/Users/pgowd/Documents/WSU_Archive_Search_Tool_New/installer/scripts/archive_search.dump\")",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(pwsh:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(docker cp:*)",
+      "Bash(echo:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(timeout /t:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\pgowd\\Documents\\WSU_Archive_Search_Tool_New"
