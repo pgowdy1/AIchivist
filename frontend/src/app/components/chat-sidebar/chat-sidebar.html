@@ -1,0 +1,44 @@
+@if (visible()) {
+  <div class="chat-sidebar">
+    <div class="chat-header">
+      <h3 class="chat-title">Ask about these results</h3>
+      <p class="chat-subtitle">Claude can help you explore the collections further</p>
+    </div>
+
+    <div class="chat-messages" #messagesContainer>
+      @if (messages().length === 0) {
+        <div class="chat-empty">
+          <p>Ask a follow-up question about the search results.</p>
+          <p class="chat-empty-examples">For example: "Which collection has the most primary sources?" or "Are any of these digitized?"</p>
+        </div>
+      }
+      @for (message of messages(); track $index) {
+        <app-chat-message [message]="message" />
+      }
+      @if (loading()) {
+        <div class="thinking-indicator">
+          <span></span><span></span><span></span>
+        </div>
+      }
+    </div>
+
+    @if (error()) {
+      <div class="chat-error">{{ error() }}</div>
+    }
+
+    <div class="chat-input-area">
+      <textarea
+        class="chat-input"
+        [value]="inputText()"
+        (input)="inputText.set($any($event.target).value)"
+        (keydown)="onKeyDown($event)"
+        placeholder="Ask about these collections..."
+        [disabled]="loading()"
+        rows="2"
+      ></textarea>
+      <button class="send-button" type="button" (click)="send()" [disabled]="loading() || !inputText().trim()">
+        Send
+      </button>
+    </div>
+  </div>
+}

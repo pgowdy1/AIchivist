@@ -1,0 +1,99 @@
+<div class="result-card">
+  <div class="card-header">
+    <div class="rank-badge">{{ result.rank }}</div>
+    <div class="card-title-section">
+      <h3 class="card-title">{{ result.title }}</h3>
+      <div class="card-meta">
+        <span class="meta-item collection-id">{{ result.collectionUnitId }}</span>
+        @if (result.repository) {
+          <span class="meta-separator">·</span>
+          <span class="meta-item">{{ result.repository }}</span>
+        }
+        @if (result.dateRange) {
+          <span class="meta-separator">·</span>
+          <span class="meta-item">{{ result.dateRange }}</span>
+        }
+        @if (result.extent) {
+          <span class="meta-separator">·</span>
+          <span class="meta-item">{{ result.extent }}</span>
+        }
+      </div>
+    </div>
+    <div class="relevance-score">
+      <div class="score-label">Relevance</div>
+      <div class="score-bar-wrapper">
+        <div class="score-bar" [style.width]="scoreWidth" [style.background]="scoreColor"></div>
+      </div>
+      <div class="score-value" [style.color]="scoreColor">{{ result.relevanceScore }}/10</div>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <p class="relevance-explanation">{{ result.relevanceExplanation }}</p>
+
+    @if (result.subjects.length > 0) {
+      <div class="subjects">
+        @for (subject of result.subjects.slice(0, 5); track subject) {
+          <span class="subject-chip">{{ subject }}</span>
+        }
+        @if (result.subjects.length > 5) {
+          <span class="subject-chip more">+{{ result.subjects.length - 5 }} more</span>
+        }
+      </div>
+    }
+  </div>
+
+  @if (result.abstract || result.scopeContent || result.seriesTitles.length > 0 || result.persnames.length > 0) {
+    <button class="expand-button" type="button" (click)="toggleExpanded()">
+      {{ expanded ? 'Show less' : 'Show more details' }}
+      <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
+    </button>
+
+    @if (expanded) {
+      <div class="expanded-content">
+        @if (result.abstract) {
+          <div class="detail-section">
+            <h4 class="detail-label">Abstract</h4>
+            <p class="detail-text">{{ result.abstract }}</p>
+          </div>
+        }
+        @if (result.scopeContent) {
+          <div class="detail-section">
+            <h4 class="detail-label">Scope & Content</h4>
+            <p class="detail-text">{{ result.scopeContent }}</p>
+          </div>
+        }
+        @if (result.seriesTitles.length > 0) {
+          <div class="detail-section">
+            <h4 class="detail-label">Series</h4>
+            <ul class="detail-list">
+              @for (series of result.seriesTitles; track series) {
+                <li>{{ series }}</li>
+              }
+            </ul>
+          </div>
+        }
+        @if (result.persnames.length > 0) {
+          <div class="detail-section">
+            <h4 class="detail-label">People</h4>
+            <div class="subjects">
+              @for (name of result.persnames; track name) {
+                <span class="subject-chip">{{ name }}</span>
+              }
+            </div>
+          </div>
+        }
+        @if (result.geognames.length > 0) {
+          <div class="detail-section">
+            <h4 class="detail-label">Places</h4>
+            <div class="subjects">
+              @for (place of result.geognames; track place) {
+                <span class="subject-chip place">{{ place }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

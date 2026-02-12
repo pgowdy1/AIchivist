@@ -1,0 +1,33 @@
+.results-panel {
+  width: 100%;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.results-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.cached-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #e8f5e9;
+  color: #388e3c;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

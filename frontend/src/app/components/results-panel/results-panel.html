@@ -1,0 +1,17 @@
+<div class="results-panel">
+  @if (results.length > 0) {
+    <div class="results-header">
+      <h2 class="results-title">
+        Found {{ results.length }} collections for "{{ query }}"
+      </h2>
+      @if (cached) {
+        <span class="cached-badge">Cached</span>
+      }
+    </div>
+    <div class="results-list">
+      @for (result of results; track result.collectionUnitId) {
+        <app-result-card [result]="result" />
+      }
+    </div>
+  }
+</div>

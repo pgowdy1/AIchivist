@@ -1,0 +1,30 @@
+<div class="search-bar">
+  <form (ngSubmit)="onSubmit()" class="search-form">
+    <div class="search-input-wrapper">
+      <input
+        type="text"
+        [(ngModel)]="query"
+        name="query"
+        class="search-input"
+        placeholder="Search WSU archive collections..."
+        [disabled]="loading"
+        autocomplete="off"
+      />
+      <button type="submit" class="search-button" [disabled]="loading || query.trim().length < 3">
+        @if (loading) {
+          <span class="spinner"></span>
+        } @else {
+          <span>Search</span>
+        }
+      </button>
+    </div>
+  </form>
+  @if (!loading) {
+    <div class="example-queries">
+      <span class="example-label">Try:</span>
+      @for (example of exampleQueries; track example) {
+        <button class="example-chip" type="button" (click)="useExample(example)">{{ example }}</button>
+      }
+    </div>
+  }
+</div>

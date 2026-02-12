@@ -1,0 +1,4 @@
+<div class="chat-message" [class.user]="message.role === 'user'" [class.assistant]="message.role === 'assistant'">
+  <div class="message-role">{{ message.role === 'user' ? 'You' : 'Claude' }}</div>
+  <div class="message-content">{{ message.content }}</div>
+</div>
