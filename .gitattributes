@@ -1,0 +1,23 @@
+# Normalize line endings
+* text=auto
+
+# Explicitly declare text files
+*.cs text diff=csharp
+*.csproj text
+*.slnx text
+*.json text
+*.ts text
+*.html text
+*.scss text
+*.yml text
+*.md text
+
+# Declare binary files
+*.ico binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.exe binary
+*.dll binary
+*.pdb binary
+*.dump binary
