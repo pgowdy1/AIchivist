@@ -10,6 +10,7 @@ import { SearchService } from '../../services/search';
 })
 export class ResultCard {
   @Input() result!: CollectionResult;
+  @Input() unranked = false;
 
   private readonly searchService = inject(SearchService);
 

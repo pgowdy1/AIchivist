@@ -141,10 +141,22 @@ using (var scope = app.Services.CreateScope())
     {
         await db.Database.MigrateAsync();
         logger.LogInformation("Database migrations applied.");
+
+        var collectionCount = await db.Collections.CountAsync();
+        if (collectionCount == 0)
+            logger.LogWarning("Database is empty — no collections found. Search will return no results. " +
+                              "Run the indexing endpoint or check that the database dump was restored.");
+        else
+            logger.LogInformation("Database contains {Count} collections.", collectionCount);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to apply database migrations. Ensure PostgreSQL is running.");
+        logger.LogError(ex, "Failed to connect to database or apply migrations. " +
+                            "Ensure PostgreSQL is running on the configured port. " +
+                            "Connection string: {ConnectionString}",
+                            connectionString.Contains("Password=")
+                                ? connectionString[..connectionString.IndexOf("Password=")] + "Password=***"
+                                : connectionString);
     }
 }
 

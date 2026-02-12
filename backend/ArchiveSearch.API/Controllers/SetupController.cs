@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Anthropic;
 using Anthropic.Models.Messages;
 using Microsoft.AspNetCore.Mvc;
@@ -41,8 +42,17 @@ public class SetupController(SetupState setupState, ILogger<SetupController> log
         // Write the key to the local config file
         try
         {
-            var config = new Dictionary<string, string> { ["ANTHROPIC_API_KEY"] = request.ApiKey };
-            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            // Read existing config to preserve connection string written by installer
+            var node = new JsonObject();
+            if (System.IO.File.Exists(setupState.LocalSettingsPath))
+            {
+                var existingJson = await System.IO.File.ReadAllTextAsync(setupState.LocalSettingsPath);
+                node = JsonNode.Parse(existingJson)?.AsObject() ?? new JsonObject();
+            }
+
+            node["ANTHROPIC_API_KEY"] = request.ApiKey;
+
+            var json = node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             var dir = Path.GetDirectoryName(setupState.LocalSettingsPath)!;
             Directory.CreateDirectory(dir);
             await System.IO.File.WriteAllTextAsync(setupState.LocalSettingsPath, json);

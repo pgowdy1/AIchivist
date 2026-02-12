@@ -12,6 +12,15 @@
     box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
+
+  &.unranked {
+    border-left-color: var(--color-border);
+    opacity: 0.85;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
 }
 
 @keyframes fadeSlideUp {

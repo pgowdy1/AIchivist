@@ -2,6 +2,7 @@ using System.Globalization;
 using ArchiveSearch.Core.Models;
 using ArchiveSearch.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace ArchiveSearch.Data.Repositories;
 
@@ -73,9 +74,16 @@ public class CollectionRepository(ArchiveContext context)
                         results.Add(hit);
                 }
             }
+            catch (Exception ex) when (ex is NpgsqlException npgEx && npgEx.InnerException is System.Net.Sockets.SocketException
+                                      || ex is NpgsqlException { IsTransient: true }
+                                      || ex is InvalidOperationException { Message: var msg } && msg.Contains("connection"))
+            {
+                // Infrastructure error (PostgreSQL unreachable, connection refused, etc.) — rethrow
+                throw;
+            }
             catch
             {
-                // Individual sub-query failure (e.g., malformed phrase) — skip silently
+                // Individual sub-query failure (e.g., malformed tsquery from Claude phrase) — skip silently
             }
         }
 
@@ -181,6 +189,12 @@ public class CollectionRepository(ArchiveContext context)
                     """)
                 .AsNoTracking()
                 .ToListAsync();
+        }
+        catch (Exception ex) when (ex is NpgsqlException npgEx && npgEx.InnerException is System.Net.Sockets.SocketException
+                                    || ex is NpgsqlException { IsTransient: true }
+                                    || ex is InvalidOperationException { Message: var msg } && msg.Contains("connection"))
+        {
+            throw;
         }
         catch
         {

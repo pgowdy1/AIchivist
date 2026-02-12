@@ -27,6 +27,7 @@
         <div class="results-main">
           <app-results-panel
             [results]="searchResponse()!.results"
+            [additionalResults]="searchResponse()!.additionalResults ?? []"
             [query]="searchResponse()!.query"
             [cached]="searchResponse()!.cached"
           />

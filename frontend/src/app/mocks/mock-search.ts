@@ -30,16 +30,25 @@ export function mockSearch(query: string): SearchResponse {
     return { collection: c, matchCount };
   });
 
-  const results = scored
+  const matched = scored
     .filter((s) => s.matchCount > 0)
-    .sort((a, b) => b.matchCount - a.matchCount)
-    .slice(0, 10)
-    .map((s, i) => ({
-      ...s.collection,
-      rank: i + 1,
-      relevanceScore: Math.round((10 - i * 0.7) * 10) / 10,
-      relevanceExplanation: buildExplanation(s.collection.title, query, s.matchCount),
-    }));
+    .sort((a, b) => b.matchCount - a.matchCount);
+
+  const results = matched.slice(0, 10).map((s, i) => ({
+    ...s.collection,
+    rank: i + 1,
+    relevanceScore: Math.round((10 - i * 0.7) * 10) / 10,
+    relevanceExplanation: buildExplanation(s.collection.title, query, s.matchCount),
+    isAiRanked: true,
+  }));
+
+  const additionalResults = matched.slice(10).map((s, i) => ({
+    ...s.collection,
+    rank: results.length + i + 1,
+    relevanceScore: 0,
+    relevanceExplanation: 'Found by keyword search. Not individually ranked by AI.',
+    isAiRanked: false,
+  }));
 
   // If nothing matched, return a random sample so the UI isn't empty
   const finalResults =
@@ -50,12 +59,14 @@ export function mockSearch(query: string): SearchResponse {
           rank: i + 1,
           relevanceScore: 5,
           relevanceExplanation: `Potentially related to "${query}" — this collection may contain tangentially relevant materials.`,
+          isAiRanked: false,
         }));
 
   return {
     query,
     contextId: 'mock-ctx-' + Date.now(),
     results: finalResults,
+    additionalResults: results.length > 0 ? additionalResults : [],
     cached: false,
   };
 }
