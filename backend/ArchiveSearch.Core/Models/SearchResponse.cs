@@ -5,6 +5,7 @@ public class SearchResponse
     public string Query { get; set; } = string.Empty;
     public string ContextId { get; set; } = string.Empty;
     public List<CollectionResult> Results { get; set; } = [];
+    public List<CollectionResult> AdditionalResults { get; set; } = [];
     public bool Cached { get; set; }
 }
 
@@ -13,6 +14,7 @@ public class CollectionResult
     public int Rank { get; set; }
     public int RelevanceScore { get; set; }
     public string RelevanceExplanation { get; set; } = string.Empty;
+    public bool IsAiRanked { get; set; }
     public string CollectionUnitId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? Repository { get; set; }

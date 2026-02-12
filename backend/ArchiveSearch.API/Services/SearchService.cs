@@ -1,5 +1,6 @@
 using ArchiveSearch.Core.Cache;
 using ArchiveSearch.Core.Models;
+using ArchiveSearch.Data.Entities;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.Extensions.Logging;
 
@@ -66,11 +67,12 @@ public class SearchService(
 
         if (candidates.Count == 0)
         {
-            return new SearchResponse { Query = query, ContextId = contextId, Results = [] };
+            return new SearchResponse { Query = query, ContextId = contextId, Results = [], AdditionalResults = [] };
         }
 
         // ── Pass 2: Claude Ranking (Claude Haiku) ──────────────────────────
         List<CollectionResult> results;
+        List<CollectionResult> additionalResults;
         try
         {
             logger.LogInformation("Pass 2 (Claude): Ranking {Count} candidates", candidates.Count);
@@ -85,31 +87,23 @@ public class SearchService(
                     if (!entityMap.TryGetValue(r.CollectionId, out var entity))
                         return null;
 
-                    return new CollectionResult
-                    {
-                        Rank = r.Rank,
-                        RelevanceScore = r.RelevanceScore,
-                        RelevanceExplanation = r.Explanation,
-                        CollectionUnitId = entity.CollectionUnitId,
-                        Title = entity.Title,
-                        Repository = entity.Repository,
-                        DateRange = entity.DateRange,
-                        Extent = entity.Extent,
-                        Abstract = entity.Abstract,
-                        ScopeContent = entity.ScopeContent,
-                        BiogHist = entity.BiogHist,
-                        Subjects = [.. entity.Subjects],
-                        Persnames = [.. entity.Persnames],
-                        Geognames = [.. entity.Geognames],
-                        Genres = [.. entity.Genres],
-                        SeriesTitles = [.. entity.SeriesTitles]
-                    };
+                    return MapToResult(entity, r.Rank, r.RelevanceScore, r.Explanation, isAiRanked: true);
                 })
                 .Where(r => r is not null)
                 .Select(r => r!)
                 .ToList();
 
-            logger.LogInformation("Pass 2 returned {Count} ranked results", results.Count);
+            var rankedIds = new HashSet<string>(results.Select(r => r.CollectionUnitId));
+            additionalResults = candidates
+                .Where(c => !rankedIds.Contains(c.CollectionUnitId))
+                .Select((entity, i) => MapToResult(
+                    entity, results.Count + i + 1, 0,
+                    "Found by keyword search. Not individually ranked by AI.", isAiRanked: false))
+                .ToList();
+
+            logger.LogInformation(
+                "Pass 2 returned {RankedCount} ranked + {AdditionalCount} additional results",
+                results.Count, additionalResults.Count);
         }
         catch (Exception ex)
         {
@@ -118,25 +112,16 @@ public class SearchService(
 
             results = candidates
                 .Take(10)
-                .Select((entity, index) => new CollectionResult
-                {
-                    Rank = index + 1,
-                    RelevanceScore = 10 - index,
-                    RelevanceExplanation = "Ranked by keyword relevance (AI ranking unavailable).",
-                    CollectionUnitId = entity.CollectionUnitId,
-                    Title = entity.Title,
-                    Repository = entity.Repository,
-                    DateRange = entity.DateRange,
-                    Extent = entity.Extent,
-                    Abstract = entity.Abstract,
-                    ScopeContent = entity.ScopeContent,
-                    BiogHist = entity.BiogHist,
-                    Subjects = [.. entity.Subjects],
-                    Persnames = [.. entity.Persnames],
-                    Geognames = [.. entity.Geognames],
-                    Genres = [.. entity.Genres],
-                    SeriesTitles = [.. entity.SeriesTitles]
-                })
+                .Select((entity, index) => MapToResult(
+                    entity, index + 1, 10 - index,
+                    "Ranked by keyword relevance (AI ranking unavailable).", isAiRanked: false))
+                .ToList();
+
+            additionalResults = candidates
+                .Skip(10)
+                .Select((entity, index) => MapToResult(
+                    entity, 10 + index + 1, 0,
+                    "Found by keyword search (AI ranking unavailable).", isAiRanked: false))
                 .ToList();
         }
 
@@ -145,10 +130,36 @@ public class SearchService(
             Query = query,
             ContextId = contextId,
             Results = results,
+            AdditionalResults = additionalResults,
             Cached = false
         };
 
         cache.SetSearchResult(contextId, response);
         return response;
+    }
+
+    private static CollectionResult MapToResult(
+        CollectionEntity entity, int rank, int relevanceScore, string explanation, bool isAiRanked)
+    {
+        return new CollectionResult
+        {
+            Rank = rank,
+            RelevanceScore = relevanceScore,
+            RelevanceExplanation = explanation,
+            IsAiRanked = isAiRanked,
+            CollectionUnitId = entity.CollectionUnitId,
+            Title = entity.Title,
+            Repository = entity.Repository,
+            DateRange = entity.DateRange,
+            Extent = entity.Extent,
+            Abstract = entity.Abstract,
+            ScopeContent = entity.ScopeContent,
+            BiogHist = entity.BiogHist,
+            Subjects = [.. entity.Subjects],
+            Persnames = [.. entity.Persnames],
+            Geognames = [.. entity.Geognames],
+            Genres = [.. entity.Genres],
+            SeriesTitles = [.. entity.SeriesTitles]
+        };
     }
 }
