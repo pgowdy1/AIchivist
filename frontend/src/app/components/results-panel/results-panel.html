@@ -13,5 +13,43 @@
         <app-result-card [result]="result" />
       }
     </div>
+
+    @if (additionalResults.length > 0) {
+      <div class="additional-section">
+        <div class="additional-divider">
+          <span class="additional-divider-line"></span>
+          <span class="additional-divider-text">
+            {{ additionalResults.length }} additional match{{ additionalResults.length === 1 ? '' : 'es' }}
+          </span>
+          <span class="additional-divider-line"></span>
+        </div>
+
+        <p class="additional-description">
+          These collections matched your search terms but were not ranked by AI.
+        </p>
+
+        <button
+          class="show-additional-btn"
+          type="button"
+          (click)="toggleAdditional()"
+        >
+          @if (showAdditional()) {
+            Hide additional matches
+            <span class="btn-icon">&#9650;</span>
+          } @else {
+            Show {{ additionalResults.length }} additional match{{ additionalResults.length === 1 ? '' : 'es' }}
+            <span class="btn-icon">&#9660;</span>
+          }
+        </button>
+
+        @if (showAdditional()) {
+          <div class="additional-results-list">
+            @for (result of additionalResults; track result.collectionUnitId) {
+              <app-result-card [result]="result" [unranked]="true" />
+            }
+          </div>
+        }
+      </div>
+    }
   }
 </div>

@@ -1,37 +1,28 @@
-import { Component, signal } from '@angular/core';
-import { SearchBar } from './components/search-bar/search-bar';
-import { ResultsPanel } from './components/results-panel/results-panel';
-import { ChatSidebar } from './components/chat-sidebar/chat-sidebar';
-import { SearchService } from './services/search';
-import { SearchResponse } from './models/search.models';
+import { Component, inject, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Router, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [SearchBar, ResultsPanel, ChatSidebar],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.scss'
+  styleUrl: './app.scss',
 })
-export class App {
-  loading = signal(false);
-  searchResponse = signal<SearchResponse | null>(null);
-  error = signal('');
+export class App implements OnInit {
+  private http = inject(HttpClient);
+  private router = inject(Router);
 
-  constructor(private searchService: SearchService) {}
-
-  onSearch(query: string): void {
-    this.loading.set(true);
-    this.error.set('');
-    this.searchResponse.set(null);
-
-    this.searchService.search(query).subscribe({
+  ngOnInit(): void {
+    this.http.get<{ configured: boolean }>('/api/setup/status').subscribe({
       next: (res) => {
-        this.searchResponse.set(res);
-        this.loading.set(false);
+        if (!res.configured) {
+          this.router.navigateByUrl('/setup');
+        }
       },
       error: () => {
-        this.error.set('Search failed. Make sure the backend is running.');
-        this.loading.set(false);
-      }
+        // If the status endpoint fails (backend not running), stay on current route.
+        // The home component will show its own error when search is attempted.
+      },
     });
   }
 }

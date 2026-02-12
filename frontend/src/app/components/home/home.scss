@@ -1,0 +1,130 @@
+.app-layout {
+  min-height: 100vh;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: var(--color-primary);
+  color: white;
+  padding: 16px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(255,255,255,0.05));
+  }
+}
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.header-title {
+  margin: 0 0 2px 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mock-badge {
+  background: #ff9800;
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.app-main {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.search-section {
+  margin-bottom: 32px;
+}
+
+.error-banner {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+
+.results-section {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.results-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-aside {
+  width: 420px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+}
+
+// Tablet
+@media (max-width: 1024px) {
+  .app-main {
+    padding: 24px 20px;
+  }
+
+  .chat-aside {
+    width: 340px;
+  }
+}
+
+// Mobile
+@media (max-width: 768px) {
+  .header-inner {
+    padding: 0 16px;
+  }
+
+  .app-main {
+    padding: 20px 16px;
+  }
+
+  .results-section {
+    flex-direction: column;
+  }
+
+  .chat-aside {
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+}

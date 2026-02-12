@@ -2,12 +2,16 @@
 .env
 .env.local
 
+# Local config overrides
+*.local.json
+
 # .NET
 bin/
 obj/
 *.user
 *.suo
 .vs/
+publish/
 
 # Node / Angular
 node_modules/
@@ -17,6 +21,25 @@ dist/
 # Rider / JetBrains
 .idea/
 
+# Installer (PostgreSQL binaries, build output)
+installer/
+
+# Certificates and private keys
+*.key
+*.pem
+*.pfx
+*.p12
+*.cer
+
+# Logs
+*.log
+
+# Database dumps and backups
+*.dump
+*.bak
+*.sql.gz
+
 # OS
 .DS_Store
 Thumbs.db
+nul

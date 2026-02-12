@@ -1,6 +1,8 @@
-<div class="result-card">
+<div class="result-card" [class.unranked]="unranked">
   <div class="card-header">
-    <div class="rank-badge">{{ result.rank }}</div>
+    @if (!unranked) {
+      <div class="rank-badge">{{ result.rank }}</div>
+    }
     <div class="card-title-section">
       <h3 class="card-title">{{ result.title }}</h3>
       <div class="card-meta">
@@ -19,13 +21,15 @@
         }
       </div>
     </div>
-    <div class="relevance-score">
-      <div class="score-label">Relevance</div>
-      <div class="score-bar-wrapper">
-        <div class="score-bar" [style.width]="scoreWidth" [style.background]="scoreColor"></div>
+    @if (!unranked) {
+      <div class="relevance-score">
+        <div class="score-label">Relevance</div>
+        <div class="score-bar-wrapper">
+          <div class="score-bar" [style.width]="scoreWidth" [style.background]="scoreColor"></div>
+        </div>
+        <div class="score-value" [style.color]="scoreColor">{{ result.relevanceScore }}/10</div>
       </div>
-      <div class="score-value" [style.color]="scoreColor">{{ result.relevanceScore }}/10</div>
-    </div>
+    }
   </div>
 
   <div class="card-body">
@@ -43,7 +47,7 @@
     }
   </div>
 
-  @if (result.abstract || result.scopeContent || result.seriesTitles.length > 0 || result.persnames.length > 0) {
+  @if (result.abstract || result.scopeContent || result.biogHist || result.seriesTitles.length > 0 || result.persnames.length > 0) {
     <button class="expand-button" type="button" (click)="toggleExpanded()">
       {{ expanded ? 'Show less' : 'Show more details' }}
       <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
@@ -61,6 +65,12 @@
           <div class="detail-section">
             <h4 class="detail-label">Scope & Content</h4>
             <p class="detail-text">{{ result.scopeContent }}</p>
+          </div>
+        }
+        @if (result.biogHist) {
+          <div class="detail-section">
+            <h4 class="detail-label">Historical Note</h4>
+            <p class="detail-text">{{ result.biogHist }}</p>
           </div>
         }
         @if (result.seriesTitles.length > 0) {
@@ -93,6 +103,37 @@
             </div>
           </div>
         }
+
+        <div class="detail-section related-section">
+          <h4 class="detail-label">Related Collections</h4>
+          @if (!relatedLoaded()) {
+            <button class="load-related-btn" (click)="loadRelated()" [disabled]="loadingRelated()">
+              @if (loadingRelated()) {
+                Loading...
+              } @else {
+                Show related collections
+              }
+            </button>
+          }
+          @if (relatedLoaded() && relatedCollections().length === 0) {
+            <p class="detail-text">No strongly related collections found.</p>
+          }
+          @if (relatedCollections().length > 0) {
+            @for (rel of relatedCollections(); track rel.collectionUnitId) {
+              <div class="related-card">
+                <div class="related-title">{{ rel.title }}</div>
+                <div class="related-meta">
+                  @if (rel.dateRange) { <span>{{ rel.dateRange }}</span> }
+                  @if (rel.repository) { <span>{{ rel.repository }}</span> }
+                </div>
+                <div class="related-overlap">{{ rel.overlapSummary }}</div>
+                @if (rel.abstract) {
+                  <p class="related-abstract">{{ rel.abstract }}</p>
+                }
+              </div>
+            }
+          }
+        </div>
       </div>
     }
   }

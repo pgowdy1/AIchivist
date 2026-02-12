@@ -1,5 +1,6 @@
-import { Component, Input } from '@angular/core';
-import { CollectionResult } from '../../models/search.models';
+import { Component, inject, Input, signal } from '@angular/core';
+import { CollectionResult, RelatedCollection } from '../../models/search.models';
+import { SearchService } from '../../services/search';
 
 @Component({
   selector: 'app-result-card',
@@ -9,8 +10,15 @@ import { CollectionResult } from '../../models/search.models';
 })
 export class ResultCard {
   @Input() result!: CollectionResult;
+  @Input() unranked = false;
+
+  private readonly searchService = inject(SearchService);
 
   expanded = false;
+
+  relatedCollections = signal<RelatedCollection[]>([]);
+  loadingRelated = signal(false);
+  relatedLoaded = signal(false);
 
   get scoreWidth(): string {
     return `${(this.result.relevanceScore / 10) * 100}%`;
@@ -25,5 +33,24 @@ export class ResultCard {
 
   toggleExpanded(): void {
     this.expanded = !this.expanded;
+  }
+
+  loadRelated(): void {
+    if (this.relatedLoaded()) {
+      return;
+    }
+
+    this.loadingRelated.set(true);
+
+    this.searchService.getRelated(this.result.collectionUnitId).subscribe({
+      next: (collections) => {
+        this.relatedCollections.set(collections);
+        this.relatedLoaded.set(true);
+        this.loadingRelated.set(false);
+      },
+      error: () => {
+        this.loadingRelated.set(false);
+      },
+    });
   }
 }

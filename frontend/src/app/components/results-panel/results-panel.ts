@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, signal } from '@angular/core';
 import { CollectionResult } from '../../models/search.models';
 import { ResultCard } from '../result-card/result-card';
 
@@ -10,6 +10,13 @@ import { ResultCard } from '../result-card/result-card';
 })
 export class ResultsPanel {
   @Input() results: CollectionResult[] = [];
+  @Input() additionalResults: CollectionResult[] = [];
   @Input() query = '';
   @Input() cached = false;
+
+  showAdditional = signal(false);
+
+  toggleAdditional(): void {
+    this.showAdditional.update((v) => !v);
+  }
 }

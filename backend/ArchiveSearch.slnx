@@ -2,4 +2,5 @@
   <Project Path="ArchiveSearch.API/ArchiveSearch.API.csproj" />
   <Project Path="ArchiveSearch.Core/ArchiveSearch.Core.csproj" />
   <Project Path="ArchiveSearch.Data/ArchiveSearch.Data.csproj" />
+  <Project Path="ArchiveSearch.Tests/ArchiveSearch.Tests.csproj" />
 </Solution>
