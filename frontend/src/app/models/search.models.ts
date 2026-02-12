@@ -6,7 +6,7 @@ export interface CollectionResult {
   rank: number;
   relevanceScore: number;
   relevanceExplanation: string;
-  isAiRanked: boolean;
+  isAiRanked?: boolean;
   collectionUnitId: string;
   title: string;
   repository: string | null;
