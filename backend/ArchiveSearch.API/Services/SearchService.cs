@@ -33,15 +33,23 @@ public class SearchService(
 
         // ── Pass 0: Query Expansion (Claude Haiku) ─────────────────────────
         List<string> searchQueries;
+        int? dateStart = null;
+        int? dateEnd = null;
         try
         {
             logger.LogInformation("Pass 0 (Expand): Generating search phrases for: {Query}", query);
-            var expansions = await claude.ExpandQueryAsync(query);
-            searchQueries = new List<string>(expansions.Count + 1) { query };
-            searchQueries.AddRange(expansions);
+            var expansion = await claude.ExpandQueryAsync(query);
+            searchQueries = new List<string>(expansion.Phrases.Count + 1) { query };
+            searchQueries.AddRange(expansion.Phrases);
+            dateStart = expansion.DateStart;
+            dateEnd = expansion.DateEnd;
             logger.LogInformation(
                 "Pass 0 (Expand): Generated {Count} phrases: [{Phrases}]",
-                expansions.Count, string.Join(", ", expansions));
+                expansion.Phrases.Count, string.Join(", ", expansion.Phrases));
+            if (dateStart.HasValue && dateEnd.HasValue)
+                logger.LogInformation(
+                    "Pass 0 (Expand): Detected temporal range {Start}-{End}",
+                    dateStart.Value, dateEnd.Value);
         }
         catch (Exception ex)
         {
@@ -51,7 +59,9 @@ public class SearchService(
 
         // ── Pass 1: Multi-Query FTS (PostgreSQL) ───────────────────────────
         logger.LogInformation("Pass 1 (FTS): Running {Count} search queries", searchQueries.Count);
-        var candidates = await repository.MultiQuerySearchAsync(searchQueries, perQueryLimit: 15, totalLimit: 50);
+        var candidates = await repository.MultiQuerySearchAsync(
+            searchQueries, perQueryLimit: 15, totalLimit: 50,
+            dateStart: dateStart, dateEnd: dateEnd);
         logger.LogInformation("Pass 1 (FTS) returned {Count} unique candidates", candidates.Count);
 
         if (candidates.Count == 0)
@@ -87,6 +97,7 @@ public class SearchService(
                         Extent = entity.Extent,
                         Abstract = entity.Abstract,
                         ScopeContent = entity.ScopeContent,
+                        BiogHist = entity.BiogHist,
                         Subjects = [.. entity.Subjects],
                         Persnames = [.. entity.Persnames],
                         Geognames = [.. entity.Geognames],
@@ -119,6 +130,7 @@ public class SearchService(
                     Extent = entity.Extent,
                     Abstract = entity.Abstract,
                     ScopeContent = entity.ScopeContent,
+                    BiogHist = entity.BiogHist,
                     Subjects = [.. entity.Subjects],
                     Persnames = [.. entity.Persnames],
                     Geognames = [.. entity.Geognames],

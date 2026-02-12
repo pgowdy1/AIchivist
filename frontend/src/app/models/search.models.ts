@@ -13,6 +13,7 @@ export interface CollectionResult {
   extent: string | null;
   abstract: string | null;
   scopeContent: string | null;
+  biogHist: string | null;
   subjects: string[];
   persnames: string[];
   geognames: string[];
@@ -25,4 +26,18 @@ export interface SearchResponse {
   contextId: string;
   results: CollectionResult[];
   cached: boolean;
+}
+
+export interface RelatedCollection {
+  collectionUnitId: string;
+  title: string;
+  repository: string | null;
+  dateRange: string | null;
+  abstract: string | null;
+  overlapScore: number;
+  sharedSubjects: string[];
+  sharedPersons: string[];
+  sharedOrganizations: string[];
+  sharedPlaces: string[];
+  overlapSummary: string;
 }

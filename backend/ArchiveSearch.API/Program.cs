@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using Anthropic;
 using ArchiveSearch.API.Services;
 using ArchiveSearch.Core.Cache;
@@ -7,15 +10,54 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Production: port check + URL binding ─────────────────────────────────
+if (!builder.Environment.IsDevelopment())
+{
+    // Check if port 5265 is available before trying to bind
+    try
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 5265);
+        listener.Start();
+        listener.Stop();
+    }
+    catch (SocketException)
+    {
+        Console.Error.WriteLine("ERROR: Port 5265 is already in use.");
+        Console.Error.WriteLine("Is another instance of AIchivist running?");
+        Console.Error.WriteLine("Close it and try again, or check Task Manager for AIchivist.exe.");
+        Environment.Exit(1);
+    }
+
+    builder.WebHost.UseUrls("http://localhost:5265");
+}
+
+// ── File logging (production) ────────────────────────────────────────────
+if (!builder.Environment.IsDevelopment())
+{
+    var logDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AIchivist", "logs");
+    Directory.CreateDirectory(logDir);
+
+    builder.Logging.AddSimpleConsole(options =>
+    {
+        options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
+    });
+}
+
 // ── Configuration ──────────────────────────────────────────────────────────
 
-// API key — User Secrets in Development, environment variable in Production.
-// To set locally: dotnet user-secrets set "ANTHROPIC_API_KEY" "sk-ant-..." --project backend/ArchiveSearch.API
+// Load optional local config (desktop installs store API key + connection string here)
+var appDataDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "AIchivist", "config");
+Directory.CreateDirectory(appDataDir);
+var localSettingsPath = Path.Combine(appDataDir, "appsettings.local.json");
+builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
+
+// API key — check User Secrets, environment variable, and local config
 var anthropicApiKey = builder.Configuration["ANTHROPIC_API_KEY"];
-if (string.IsNullOrWhiteSpace(anthropicApiKey))
-    throw new InvalidOperationException(
-        "ANTHROPIC_API_KEY is required. In development, run: " +
-        "dotnet user-secrets set \"ANTHROPIC_API_KEY\" \"sk-ant-...\" --project backend/ArchiveSearch.API");
+var isSetupMode = string.IsNullOrWhiteSpace(anthropicApiKey);
 
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("Default")
@@ -30,8 +72,14 @@ builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ArchiveContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Anthropic client — pass key directly (avoids stale env var issues)
-builder.Services.AddSingleton(new AnthropicClient { ApiKey = anthropicApiKey });
+// Anthropic client — use real key or dummy for setup mode
+builder.Services.AddSingleton(new AnthropicClient
+{
+    ApiKey = isSetupMode ? "not-configured" : anthropicApiKey!
+});
+
+// Make setup state and config path available to controllers
+builder.Services.AddSingleton(new SetupState(isSetupMode, localSettingsPath));
 
 // Application services
 builder.Services.AddScoped<CollectionRepository>();
@@ -55,8 +103,32 @@ var app = builder.Build();
 // ── Middleware ─────────────────────────────────────────────────────────────
 
 app.UseCors();
+
+// Setup mode: block API calls (except /api/setup and /api/health) when no API key configured
+app.Use(async (context, next) =>
+{
+    var setupState = context.RequestServices.GetRequiredService<SetupState>();
+    var path = context.Request.Path.Value ?? "";
+
+    if (setupState.IsSetupMode
+        && path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase)
+        && !path.StartsWith("/api/setup", StringComparison.OrdinalIgnoreCase)
+        && !path.StartsWith("/api/health", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = 503;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync("""{"error":"Setup required","setupUrl":"/setup"}""");
+        return;
+    }
+
+    await next();
+});
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 // ── Startup: apply migrations ─────────────────────────────────────────────
 
@@ -76,4 +148,30 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// ── Open browser when server is ready (production only) ──────────────────
+
+if (!app.Environment.IsDevelopment())
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        var url = "http://localhost:5265";
+        Console.WriteLine($"AIchivist is running at {url}");
+        Console.WriteLine("Press Ctrl+C to stop.");
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch { /* Ignore if browser launch fails */ }
+    });
+}
+
 app.Run();
+
+// ── Supporting types ─────────────────────────────────────────────────────
+
+/// <summary>Tracks whether the app is in first-run setup mode (no API key configured).</summary>
+public class SetupState(bool isSetupMode, string localSettingsPath)
+{
+    public bool IsSetupMode { get; set; } = isSetupMode;
+    public string LocalSettingsPath { get; } = localSettingsPath;
+}
+
+// Enables WebApplicationFactory<Program> discovery for integration tests
+public partial class Program { }

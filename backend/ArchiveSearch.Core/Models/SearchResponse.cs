@@ -20,6 +20,7 @@ public class CollectionResult
     public string? Extent { get; set; }
     public string? Abstract { get; set; }
     public string? ScopeContent { get; set; }
+    public string? BiogHist { get; set; }
     public List<string> Subjects { get; set; } = [];
     public List<string> Persnames { get; set; } = [];
     public List<string> Geognames { get; set; } = [];

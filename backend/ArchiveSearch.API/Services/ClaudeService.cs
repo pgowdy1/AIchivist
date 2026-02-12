@@ -26,9 +26,10 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
 
     /// <summary>
     /// Uses Claude Haiku to expand a user query into 6-8 alternative search phrases
-    /// for improved full-text search recall. Cost: ~$0.001 per call.
+    /// for improved full-text search recall, plus an optional date range if the query
+    /// contains a temporal signal. Cost: ~$0.001 per call.
     /// </summary>
-    public async Task<List<string>> ExpandQueryAsync(string query)
+    public async Task<QueryExpansionResult> ExpandQueryAsync(string query)
     {
         var systemPrompt = """
             You are an expert research librarian at Washington State University's Manuscripts,
@@ -45,7 +46,16 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
             Each phrase should be 1-4 words. These will be used as PostgreSQL full-text search
             queries, so use natural search terms, not full sentences.
 
-            Return ONLY a JSON object: {"phrases": ["phrase1", "phrase2", ...]}
+            Return ONLY a JSON object with these fields:
+            - "phrases": array of 6-8 alternative search phrases (as described above)
+            - "dateRange": optional object with "start" and "end" integer years, e.g. {"start": 1929, "end": 1939}
+              Only include dateRange if the query has a clear temporal signal (decade reference, era name, or explicit years).
+              Named eras: "Great Depression" = 1929-1939, "WWI" = 1914-1918, "WWII" = 1939-1945,
+              "Cold War" = 1947-1991, "Progressive Era" = 1896-1920, "Prohibition" = 1920-1933,
+              "Vietnam War" = 1955-1975, "Civil Rights Movement" = 1954-1968, "Dust Bowl" = 1930-1940.
+              Decade references: "1920s" = 1920-1929, "turn of the century" = 1890-1910.
+              If no temporal signal is present, omit the dateRange field entirely.
+
             No markdown fences. No explanation. Just the JSON.
             """;
 
@@ -66,7 +76,7 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
 
         var response = await client.Messages.Create(parameters);
         var text = ExtractText(response);
-        return ParseExpandedPhrases(text);
+        return ParseExpansionResult(text);
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -87,6 +97,15 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
             and you have been given the full details of {candidateList.Count} archival collections that may be relevant.
 
             Your task: Select the 10 most relevant collections and rank them.
+
+            When evaluating relevance, pay close attention to:
+            - Biographical connections and relationships: who the person or organization was, their collaborators,
+              associates, and the networks they operated within.
+            - Organizational affiliations and corporate history: what institutions, companies, or agencies are
+              linked to the collection and how they relate to the research query.
+            - Historical narrative context from biographical notes: life events, career milestones, and historical
+              circumstances described in the "History" field that connect to the query topic.
+            These contextual details are often more revealing of relevance than subject headings alone.
 
             Return ONLY a valid JSON array with up to 10 objects (include fewer if fewer are relevant).
             Each object must have:
@@ -199,18 +218,29 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
         }
     }
 
-    private static List<string> ParseExpandedPhrases(string json)
+    private static QueryExpansionResult ParseExpansionResult(string json)
     {
         try
         {
             var cleaned = CleanJson(json);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var result = JsonSerializer.Deserialize<ExpandedQueryResult>(cleaned, options);
-            return result?.Phrases ?? [];
+            var raw = JsonSerializer.Deserialize<ExpandedQueryResultRaw>(cleaned, options);
+            var result = new QueryExpansionResult
+            {
+                Phrases = raw?.Phrases ?? []
+            };
+
+            if (raw?.DateRange is not null)
+            {
+                result.DateStart = raw.DateRange.Start;
+                result.DateEnd = raw.DateRange.End;
+            }
+
+            return result;
         }
         catch
         {
-            return [];
+            return new QueryExpansionResult();
         }
     }
 
@@ -239,11 +269,12 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
             if (c.Extent is not null) sb.AppendLine($"Extent: {c.Extent}");
             if (c.Abstract is not null) sb.AppendLine($"Abstract: {c.Abstract}");
             if (c.ScopeContent is not null)
-                sb.AppendLine($"Scope: {c.ScopeContent[..Math.Min(500, c.ScopeContent.Length)]}");
+                sb.AppendLine($"Scope: {c.ScopeContent[..Math.Min(1500, c.ScopeContent.Length)]}");
             if (c.BiogHist is not null)
-                sb.AppendLine($"History: {c.BiogHist[..Math.Min(300, c.BiogHist.Length)]}");
+                sb.AppendLine($"History: {c.BiogHist[..Math.Min(1200, c.BiogHist.Length)]}");
             if (c.Subjects.Length > 0) sb.AppendLine($"Subjects: {string.Join("; ", c.Subjects)}");
             if (c.Persnames.Length > 0) sb.AppendLine($"People: {string.Join("; ", c.Persnames)}");
+            if (c.Corpnames.Length > 0) sb.AppendLine($"Organizations: {string.Join("; ", c.Corpnames)}");
             if (c.Geognames.Length > 0) sb.AppendLine($"Places: {string.Join("; ", c.Geognames)}");
             if (c.Genres.Length > 0) sb.AppendLine($"Genres: {string.Join("; ", c.Genres)}");
             if (c.SeriesTitles.Length > 0)
@@ -277,8 +308,16 @@ public class RankedResult
     public string Explanation { get; set; } = string.Empty;
 }
 
-/// <summary>Intermediate model for deserializing Haiku's query expansion response.</summary>
-internal class ExpandedQueryResult
+/// <summary>Intermediate model for deserializing Haiku's query expansion JSON response.</summary>
+internal class ExpandedQueryResultRaw
 {
     public List<string> Phrases { get; set; } = [];
+    public DateRangeRaw? DateRange { get; set; }
+}
+
+/// <summary>Intermediate model for the optional dateRange object in expansion response.</summary>
+internal class DateRangeRaw
+{
+    public int? Start { get; set; }
+    public int? End { get; set; }
 }

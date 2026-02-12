@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArchiveSearch.Core.Models;
 using ArchiveSearch.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -27,12 +28,19 @@ public class CollectionRepository(ArchiveContext context)
     /// Runs full-text search for each query phrase, merges results, and deduplicates.
     /// Each sub-query returns up to <paramref name="perQueryLimit"/> results.
     /// Total unique results capped at <paramref name="totalLimit"/>.
+    /// When <paramref name="dateStart"/> and <paramref name="dateEnd"/> are provided,
+    /// collections whose date range overlaps the temporal window receive a +0.5 rank boost.
     /// </summary>
     public async Task<List<CollectionEntity>> MultiQuerySearchAsync(
-        IEnumerable<string> queries, int perQueryLimit = 15, int totalLimit = 50)
+        IEnumerable<string> queries, int perQueryLimit = 15, int totalLimit = 50,
+        int? dateStart = null, int? dateEnd = null)
     {
         var seen = new HashSet<string>();
         var results = new List<CollectionEntity>();
+        var hasDate = dateStart.HasValue && dateEnd.HasValue;
+        // Provide concrete values for SQL parameters even when unused; the CASE guard prevents them from affecting results.
+        var sqlDateStart = dateStart ?? 0;
+        var sqlDateEnd = dateEnd ?? 0;
 
         foreach (var query in queries)
         {
@@ -44,7 +52,16 @@ public class CollectionRepository(ArchiveContext context)
                     .FromSqlInterpolated($"""
                         SELECT * FROM collections
                         WHERE search_vector @@ websearch_to_tsquery('english', {query})
-                        ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', {query})) DESC
+                        ORDER BY
+                            ts_rank_cd(search_vector, websearch_to_tsquery('english', {query}))
+                            + CASE
+                                WHEN {hasDate}
+                                     AND date_start IS NOT NULL AND date_end IS NOT NULL
+                                     AND date_start <= {sqlDateEnd} AND date_end >= {sqlDateStart}
+                                THEN 0.5
+                                ELSE 0.0
+                              END
+                            DESC
                         LIMIT {perQueryLimit}
                         """)
                     .AsNoTracking()
@@ -123,6 +140,116 @@ public class CollectionRepository(ArchiveContext context)
 
     /// <summary>Total number of indexed collections.</summary>
     public Task<int> CountAsync() => context.Collections.CountAsync();
+
+    /// <summary>
+    /// Finds collections that share entities (persons, organizations, subjects, places)
+    /// with the given collection. Scores by weighted overlap and returns lightweight DTOs.
+    /// </summary>
+    public async Task<List<RelatedCollection>> FindRelatedAsync(string unitId, int limit = 8)
+    {
+        // 1. Load the source collection
+        var source = await context.Collections
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CollectionUnitId == unitId);
+
+        if (source is null) return [];
+
+        // 2. Build search terms from the source's key entities for candidate retrieval
+        var sourceTerms = source.Subjects.Take(5)
+            .Concat(source.Persnames.Take(3))
+            .Concat(source.Corpnames.Take(3))
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+
+        if (sourceTerms.Count == 0) return [];
+
+        // Build a websearch-compatible query string from the terms (OR-joined quoted phrases)
+        var queryString = string.Join(" OR ",
+            sourceTerms.Select(t => string.Concat("\"", t.Replace("\"", "", StringComparison.Ordinal), "\"")));
+
+        // 3. Get up to 40 candidates via FTS (excluding the source itself)
+        List<CollectionEntity> candidates;
+        try
+        {
+            candidates = await context.Collections
+                .FromSqlInterpolated($"""
+                    SELECT * FROM collections
+                    WHERE collection_unitid != {unitId}
+                      AND search_vector @@ websearch_to_tsquery('english', {queryString})
+                    ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', {queryString})) DESC
+                    LIMIT 40
+                    """)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+        catch
+        {
+            // FTS query may fail if terms produce invalid tsquery — return empty gracefully
+            return [];
+        }
+
+        // 4. Score each candidate by entity overlap (application-side, arrays are small)
+        var scored = candidates.Select(c =>
+        {
+            var sharedSubjects = source.Subjects.Intersect(c.Subjects, StringComparer.OrdinalIgnoreCase).ToList();
+            var sharedPersons = source.Persnames.Intersect(c.Persnames, StringComparer.OrdinalIgnoreCase).ToList();
+            var sharedOrgs = source.Corpnames.Intersect(c.Corpnames, StringComparer.OrdinalIgnoreCase).ToList();
+            var sharedPlaces = source.Geognames.Intersect(c.Geognames, StringComparer.OrdinalIgnoreCase).ToList();
+
+            double score = (sharedPersons.Count * 4.0) + (sharedOrgs.Count * 4.0)
+                         + (sharedSubjects.Count * 3.0) + (sharedPlaces.Count * 2.0);
+
+            // Date overlap bonus
+            if (source.DateStart.HasValue && source.DateEnd.HasValue
+                && c.DateStart.HasValue && c.DateEnd.HasValue
+                && c.DateStart <= source.DateEnd && c.DateEnd >= source.DateStart)
+            {
+                score += 2.0;
+            }
+
+            return (Entity: c, Score: score, SharedSubjects: sharedSubjects,
+                    SharedPersons: sharedPersons, SharedOrgs: sharedOrgs, SharedPlaces: sharedPlaces);
+        })
+        .Where(x => x.Score > 0)
+        .OrderByDescending(x => x.Score)
+        .Take(limit)
+        .ToList();
+
+        // 5. Map to lightweight DTOs
+        return scored.Select(x =>
+        {
+            var parts = new List<string>();
+            if (x.SharedSubjects.Count > 0)
+                parts.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"{x.SharedSubjects.Count} subject{(x.SharedSubjects.Count > 1 ? "s" : "")}"));
+            if (x.SharedPersons.Count > 0)
+                parts.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"{x.SharedPersons.Count} person{(x.SharedPersons.Count > 1 ? "s" : "")}"));
+            if (x.SharedOrgs.Count > 0)
+                parts.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"{x.SharedOrgs.Count} org{(x.SharedOrgs.Count > 1 ? "s" : "")}"));
+            if (x.SharedPlaces.Count > 0)
+                parts.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"{x.SharedPlaces.Count} place{(x.SharedPlaces.Count > 1 ? "s" : "")}"));
+
+            return new RelatedCollection
+            {
+                CollectionUnitId = x.Entity.CollectionUnitId,
+                Title = x.Entity.Title,
+                Repository = x.Entity.Repository,
+                DateRange = x.Entity.DateRange,
+                Abstract = x.Entity.Abstract,
+                OverlapScore = x.Score,
+                SharedSubjects = x.SharedSubjects.Take(3).ToList(),
+                SharedPersons = x.SharedPersons.Take(3).ToList(),
+                SharedOrganizations = x.SharedOrgs.Take(3).ToList(),
+                SharedPlaces = x.SharedPlaces.Take(3).ToList(),
+                OverlapSummary = parts.Count > 0
+                    ? $"Shares: {string.Join(", ", parts)}"
+                    : "Related by context"
+            };
+        }).ToList();
+    }
 
     private static CollectionEntity MapToEntity(CollectionDocument doc) => new()
     {

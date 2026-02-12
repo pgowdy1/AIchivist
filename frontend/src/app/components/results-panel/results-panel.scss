@@ -12,15 +12,15 @@
 .results-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
   margin: 0;
 }
 
 .cached-badge {
   display: inline-block;
   padding: 3px 10px;
-  background: #e8f5e9;
-  color: #388e3c;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;

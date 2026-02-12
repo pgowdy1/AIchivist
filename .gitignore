@@ -17,6 +17,10 @@ dist/
 # Rider / JetBrains
 .idea/
 
+# Installer (PostgreSQL binaries, build output)
+installer/
+
 # OS
 .DS_Store
 Thumbs.db
+nul
