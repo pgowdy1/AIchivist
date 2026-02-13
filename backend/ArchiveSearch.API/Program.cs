@@ -8,6 +8,17 @@ using ArchiveSearch.Data;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 
+// ── On-demand PostgreSQL (production only) ────────────────────────────────
+// Start PostgreSQL before anything else so the database is ready for EF Core.
+// Only attempt this when the bundled pg_ctl.exe exists (desktop/installer builds).
+{
+    var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
+    if (File.Exists(pgCtl))
+    {
+        await Program.StartPostgreSqlAsync();
+    }
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Production: port check + URL binding ─────────────────────────────────
@@ -133,6 +144,14 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
+// ── PostgreSQL shutdown handler ───────────────────────────────────────────
+// Stop the bundled PostgreSQL when the application is stopping, so it does not
+// linger as an orphaned process after AIchivist exits.
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    Program.StopPostgreSql();
+});
+
 // ── Startup: apply migrations ─────────────────────────────────────────────
 
 using (var scope = app.Services.CreateScope())
@@ -189,4 +208,174 @@ public class SetupState(bool isSetupMode, string localSettingsPath)
 }
 
 // Enables WebApplicationFactory<Program> discovery for integration tests
-public partial class Program { }
+public partial class Program
+{
+    /// <summary>
+    /// Starts the bundled PostgreSQL instance using pg_ctl if it is not already running.
+    /// PostgreSQL runs on port 5433 (desktop port) with the data directory at pgsql/data/.
+    /// </summary>
+    internal static async Task StartPostgreSqlAsync()
+    {
+        var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
+        var dataDir = Path.Combine(AppContext.BaseDirectory, "pgsql", "data");
+
+        if (!File.Exists(pgCtl))
+        {
+            Console.WriteLine("[PostgreSQL] pg_ctl.exe not found, skipping managed startup.");
+            return;
+        }
+
+        if (!Directory.Exists(dataDir))
+        {
+            Console.Error.WriteLine($"[PostgreSQL] Data directory not found: {dataDir}");
+            return;
+        }
+
+        try
+        {
+            // Check if PostgreSQL is already running
+            using var statusProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = pgCtl,
+                    Arguments = $"status -D \"{dataDir}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            statusProcess.Start();
+            await statusProcess.WaitForExitAsync();
+
+            // Exit code 0 means PostgreSQL is already running
+            if (statusProcess.ExitCode == 0)
+            {
+                Console.WriteLine("[PostgreSQL] Already running, skipping startup.");
+                return;
+            }
+
+            // Start PostgreSQL
+            Console.WriteLine("[PostgreSQL] Starting...");
+            using var startProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = pgCtl,
+                    Arguments = $"start -D \"{dataDir}\" -w -o \"-p 5433\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            startProcess.Start();
+
+            // Read stdout and stderr concurrently to avoid deadlock
+            var stdoutTask = startProcess.StandardOutput.ReadToEndAsync();
+            var stderrTask = startProcess.StandardError.ReadToEndAsync();
+            await startProcess.WaitForExitAsync();
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+
+            if (startProcess.ExitCode == 0)
+            {
+                Console.WriteLine("[PostgreSQL] Started successfully on port 5433.");
+            }
+            else
+            {
+                Console.Error.WriteLine($"[PostgreSQL] Failed to start (exit code {startProcess.ExitCode}).");
+                if (!string.IsNullOrWhiteSpace(stdout))
+                    Console.Error.WriteLine($"[PostgreSQL] stdout: {stdout.Trim()}");
+                if (!string.IsNullOrWhiteSpace(stderr))
+                    Console.Error.WriteLine($"[PostgreSQL] stderr: {stderr.Trim()}");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[PostgreSQL] Error during startup: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Stops the bundled PostgreSQL instance using pg_ctl with "fast" shutdown mode.
+    /// Waits up to 30 seconds for graceful shutdown. If that fails, forces immediate shutdown.
+    /// </summary>
+    internal static void StopPostgreSql()
+    {
+        var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
+        var dataDir = Path.Combine(AppContext.BaseDirectory, "pgsql", "data");
+
+        if (!File.Exists(pgCtl))
+            return;
+
+        try
+        {
+            Console.WriteLine("[PostgreSQL] Stopping...");
+            using var stopProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = pgCtl,
+                    Arguments = $"stop -D \"{dataDir}\" -m fast",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            stopProcess.Start();
+
+            // Wait up to 30 seconds for graceful shutdown
+            if (stopProcess.WaitForExit(30000))
+            {
+                if (stopProcess.ExitCode == 0)
+                    Console.WriteLine("[PostgreSQL] Stopped successfully.");
+                else
+                    Console.Error.WriteLine($"[PostgreSQL] Stop returned exit code {stopProcess.ExitCode}.");
+            }
+            else
+            {
+                // Timeout - force immediate shutdown to prevent orphaned process
+                Console.Error.WriteLine("[PostgreSQL] Graceful stop timed out after 30 seconds. Forcing immediate shutdown...");
+                stopProcess.Kill();
+
+                using var forceStopProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = pgCtl,
+                        Arguments = $"stop -D \"{dataDir}\" -m immediate",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                forceStopProcess.Start();
+                if (forceStopProcess.WaitForExit(10000))
+                {
+                    if (forceStopProcess.ExitCode == 0)
+                        Console.WriteLine("[PostgreSQL] Forced stop succeeded.");
+                    else
+                        Console.Error.WriteLine($"[PostgreSQL] Forced stop returned exit code {forceStopProcess.ExitCode}.");
+                }
+                else
+                {
+                    Console.Error.WriteLine("[PostgreSQL] Forced stop also timed out. PostgreSQL may remain running.");
+                    forceStopProcess.Kill();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[PostgreSQL] Error during shutdown: {ex.Message}");
+        }
+    }
+}

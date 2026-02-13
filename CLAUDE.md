@@ -93,6 +93,19 @@ Results are cached 1 hour by SHA256(query).
 - CORS allows `http://localhost:4200` (configurable via `FrontendOrigin` in appsettings)
 - Connection string: env var `CONNECTION_STRING` → appsettings `ConnectionStrings:Default` → default localhost
 
+## Agent Delegation
+
+**CRITICAL**: When the user requests delegating to a specific agent (e.g., "installer agent, do X"), **immediately check if that agent exists** in the available agents list. If the agent does NOT exist, **immediately tell the user** that the agent doesn't exist and show them the list of available agents. Do NOT attempt to call the Task tool with a non-existent agent.
+
+Available specialized agents for this project:
+- `backend-dev` — C# and ASP.NET Core tasks
+- `frontend-dev` — Angular 21 tasks
+- `debugger` — Debugging issues
+- `code-reviewer` — Code review before merging
+- `ml-rag-specialist` — RAG/ML architecture
+- `Explore` — Codebase exploration
+- `Plan` — Implementation planning
+
 ## Anthropic SDK Notes (v12.4.0)
 
 - Use `TextBlockParam` (not `RequestTextContent`)
