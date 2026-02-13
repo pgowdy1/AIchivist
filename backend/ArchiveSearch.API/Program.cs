@@ -210,8 +210,6 @@ public class SetupState(bool isSetupMode, string localSettingsPath)
 // Enables WebApplicationFactory<Program> discovery for integration tests
 public partial class Program
 {
-    private static Process? _postgresProcess;
-
     /// <summary>
     /// Starts the bundled PostgreSQL instance using pg_ctl if it is not already running.
     /// PostgreSQL runs on port 5433 (desktop port) with the data directory at pgsql/data/.
@@ -236,7 +234,7 @@ public partial class Program
         try
         {
             // Check if PostgreSQL is already running
-            var statusProcess = new Process
+            using var statusProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -261,7 +259,7 @@ public partial class Program
 
             // Start PostgreSQL
             Console.WriteLine("[PostgreSQL] Starting...");
-            var startProcess = new Process
+            using var startProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -275,11 +273,13 @@ public partial class Program
             };
 
             startProcess.Start();
-            _postgresProcess = startProcess;
 
-            var stdout = await startProcess.StandardOutput.ReadToEndAsync();
-            var stderr = await startProcess.StandardError.ReadToEndAsync();
+            // Read stdout and stderr concurrently to avoid deadlock
+            var stdoutTask = startProcess.StandardOutput.ReadToEndAsync();
+            var stderrTask = startProcess.StandardError.ReadToEndAsync();
             await startProcess.WaitForExitAsync();
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
 
             if (startProcess.ExitCode == 0)
             {
@@ -292,10 +292,8 @@ public partial class Program
                     Console.Error.WriteLine($"[PostgreSQL] stdout: {stdout.Trim()}");
                 if (!string.IsNullOrWhiteSpace(stderr))
                     Console.Error.WriteLine($"[PostgreSQL] stderr: {stderr.Trim()}");
+                return;
             }
-
-            // Give PostgreSQL a moment to fully accept connections
-            await Task.Delay(2000);
         }
         catch (Exception ex)
         {
@@ -305,7 +303,7 @@ public partial class Program
 
     /// <summary>
     /// Stops the bundled PostgreSQL instance using pg_ctl with "fast" shutdown mode.
-    /// Waits up to 5 seconds for graceful shutdown.
+    /// Waits up to 30 seconds for graceful shutdown. If that fails, forces immediate shutdown.
     /// </summary>
     internal static void StopPostgreSql()
     {
@@ -318,7 +316,7 @@ public partial class Program
         try
         {
             Console.WriteLine("[PostgreSQL] Stopping...");
-            var stopProcess = new Process
+            using var stopProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -333,8 +331,8 @@ public partial class Program
 
             stopProcess.Start();
 
-            // Wait up to 5 seconds for graceful shutdown
-            if (stopProcess.WaitForExit(5000))
+            // Wait up to 30 seconds for graceful shutdown
+            if (stopProcess.WaitForExit(30000))
             {
                 if (stopProcess.ExitCode == 0)
                     Console.WriteLine("[PostgreSQL] Stopped successfully.");
@@ -343,10 +341,37 @@ public partial class Program
             }
             else
             {
-                Console.Error.WriteLine("[PostgreSQL] Stop timed out after 5 seconds.");
-            }
+                // Timeout - force immediate shutdown to prevent orphaned process
+                Console.Error.WriteLine("[PostgreSQL] Graceful stop timed out after 30 seconds. Forcing immediate shutdown...");
+                stopProcess.Kill();
 
-            _postgresProcess = null;
+                using var forceStopProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = pgCtl,
+                        Arguments = $"stop -D \"{dataDir}\" -m immediate",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                forceStopProcess.Start();
+                if (forceStopProcess.WaitForExit(10000))
+                {
+                    if (forceStopProcess.ExitCode == 0)
+                        Console.WriteLine("[PostgreSQL] Forced stop succeeded.");
+                    else
+                        Console.Error.WriteLine($"[PostgreSQL] Forced stop returned exit code {forceStopProcess.ExitCode}.");
+                }
+                else
+                {
+                    Console.Error.WriteLine("[PostgreSQL] Forced stop also timed out. PostgreSQL may remain running.");
+                    forceStopProcess.Kill();
+                }
+            }
         }
         catch (Exception ex)
         {
