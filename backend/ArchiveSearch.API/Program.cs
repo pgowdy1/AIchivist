@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Anthropic;
 using ArchiveSearch.API.Services;
 using ArchiveSearch.Core.Cache;
@@ -80,12 +82,12 @@ var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 
 // Safety net: in desktop mode, ensure connection string targets port 5433 regardless
 // of config file state. Catches deleted/stale config or wrong env var.
-if (Program.IsDesktopMode && !connectionString.Contains($"Port={Program.DesktopPgPort}"))
+if (Program.IsDesktopMode && !connectionString.Contains($"Port={Program.DesktopPgPort}", StringComparison.OrdinalIgnoreCase))
 {
     Console.WriteLine("[PostgreSQL] Desktop mode: overriding connection string to port " + Program.DesktopPgPort);
-    if (connectionString.Contains("Port="))
-        connectionString = System.Text.RegularExpressions.Regex.Replace(
-            connectionString, @"Port=\d+", $"Port={Program.DesktopPgPort}");
+    if (connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase))
+        connectionString = Regex.Replace(
+            connectionString, @"Port=\d+", $"Port={Program.DesktopPgPort}", RegexOptions.IgnoreCase);
     else
         connectionString = connectionString.Replace("Host=localhost;",
             $"Host=localhost;Port={Program.DesktopPgPort};");
@@ -242,7 +244,7 @@ public partial class Program
     private static readonly int[] PgRetryDelaysMs = [2000, 4000];
 
     /// <summary>True when the bundled pg_ctl.exe exists (desktop/installer mode).</summary>
-    internal static bool IsDesktopMode =>
+    internal static readonly bool IsDesktopMode =
         File.Exists(Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe"));
 
     // ── Fatal error dialog (P/Invoke) ────────────────────────────────────────
@@ -257,6 +259,7 @@ public partial class Program
     /// Shows a native Windows error dialog and exits the process.
     /// Used only in desktop mode when a fatal startup error occurs.
     /// </summary>
+    [DoesNotReturn]
     internal static void FatalDesktopError(string message)
     {
         var fullMessage = message + "\n\n" +
@@ -292,8 +295,9 @@ public partial class Program
         {
             if (File.Exists(configPath))
             {
-                var content = File.ReadAllText(configPath);
-                if (content.Contains($"Port={DesktopPgPort}"))
+                var existingNode = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject();
+                var connStr = existingNode?["ConnectionStrings"]?["Default"]?.GetValue<string>();
+                if (connStr != null && connStr.Contains($"Port={DesktopPgPort}", StringComparison.OrdinalIgnoreCase))
                     return; // Config looks good
             }
 
@@ -315,13 +319,15 @@ public partial class Program
             }
             else
             {
-                File.WriteAllText(configPath, """
+                var newConfig = new JsonObject
+                {
+                    ["ConnectionStrings"] = new JsonObject
                     {
-                      "ConnectionStrings": {
-                        "Default": "Host=localhost;Port=5433;Database=archive_search;Username=archive;Password=archive"
-                      }
+                        ["Default"] = DesktopConnectionString
                     }
-                    """);
+                };
+                File.WriteAllText(configPath, newConfig.ToJsonString(
+                    new JsonSerializerOptions { WriteIndented = true }));
             }
 
             Console.WriteLine("[PostgreSQL] Config self-heal complete.");
@@ -372,6 +378,7 @@ public partial class Program
             // Running but not accepting connections — stop and restart
             Console.WriteLine("[PostgreSQL] Running but not accepting connections. Restarting...");
             StopPostgreSql();
+            await Task.Delay(2000); // Let the OS release the port
         }
 
         // Attempt startup with retries
@@ -386,7 +393,7 @@ public partial class Program
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = pgCtl,
-                        Arguments = $"start -D \"{dataDir}\" -w -o \"-p {DesktopPgPort}\"",
+                        Arguments = $"start -D \"{dataDir}\" -w -t 15 -o \"-p {DesktopPgPort}\"",
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
@@ -429,7 +436,8 @@ public partial class Program
             // Wait before retrying (unless last attempt)
             if (attempt < PgStartMaxAttempts)
             {
-                var delayMs = PgRetryDelaysMs[attempt - 1];
+                var delayIdx = Math.Min(attempt - 1, PgRetryDelaysMs.Length - 1);
+                var delayMs = PgRetryDelaysMs[delayIdx];
                 Console.WriteLine($"[PostgreSQL] Waiting {delayMs / 1000}s before retry...");
                 await Task.Delay(delayMs);
             }
@@ -455,8 +463,8 @@ public partial class Program
                 {
                     FileName = pgCtl,
                     Arguments = $"status -D \"{dataDir}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
@@ -499,7 +507,8 @@ public partial class Program
                 if (process.ExitCode == 0) return true;
             }
             catch { /* retry */ }
-            await Task.Delay(1000);
+            if (i < timeoutSeconds - 1)
+                await Task.Delay(1000);
         }
         return false;
     }
@@ -516,7 +525,8 @@ public partial class Program
                 return true;
             }
             catch { /* retry */ }
-            await Task.Delay(1000);
+            if (i < timeoutSeconds - 1)
+                await Task.Delay(1000);
         }
         return false;
     }

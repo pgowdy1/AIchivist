@@ -276,8 +276,13 @@ Assert-Step "Create appsettings.local.json" {
     }
 
     $configJson = $config | ConvertTo-Json -Depth 10
-    $configPath = Join-Path $testPublishDir "appsettings.local.json"
+
+    # Write to %LOCALAPPDATA%\AIchivist\config\ where the app reads it from
+    $appDataConfigDir = Join-Path $env:LOCALAPPDATA "AIchivist\config"
+    New-Item -ItemType Directory -Force -Path $appDataConfigDir | Out-Null
+    $configPath = Join-Path $appDataConfigDir "appsettings.local.json"
     Set-Content -Path $configPath -Value $configJson -Encoding UTF8
+    Write-Host "  Config written to: $configPath" -ForegroundColor Gray
 }
 
 # ── Step 6: Launch AIchivist ──────────────────────────────────────────────
@@ -299,7 +304,8 @@ Write-Host ""
 Write-Host "==================================================================================" -ForegroundColor Green
 Write-Host ""
 
-# Set environment to Production
+# Set environment to Production (save original to restore later)
+$originalAspNetEnv = $env:ASPNETCORE_ENVIRONMENT
 $env:ASPNETCORE_ENVIRONMENT = "Production"
 
 # Launch AIchivist.exe
@@ -309,6 +315,8 @@ try {
     & $aichivistExe
 }
 finally {
+    $env:ASPNETCORE_ENVIRONMENT = $originalAspNetEnv
+
     Write-Host ""
     Write-Host "==================================================================================" -ForegroundColor Cyan
     Write-Host "  Testing complete. Check console output above for PostgreSQL shutdown messages." -ForegroundColor Cyan
