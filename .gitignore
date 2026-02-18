@@ -12,6 +12,7 @@ obj/
 *.suo
 .vs/
 publish/
+test-publish/
 
 # Node / Angular
 node_modules/

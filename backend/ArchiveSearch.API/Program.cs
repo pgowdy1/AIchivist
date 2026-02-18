@@ -1,6 +1,11 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Anthropic;
 using ArchiveSearch.API.Services;
 using ArchiveSearch.Core.Cache;
@@ -8,13 +13,13 @@ using ArchiveSearch.Data;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 
-// ── On-demand PostgreSQL (production only) ────────────────────────────────
-// Start PostgreSQL before anything else so the database is ready for EF Core.
-// Only attempt this when the bundled pg_ctl.exe exists (desktop/installer builds).
+// ── On-demand PostgreSQL (desktop mode only) ──────────────────────────────
+// Self-heal config, then start PostgreSQL before anything else so the database
+// is ready for EF Core. Only when bundled pg_ctl.exe exists (installer builds).
 {
-    var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
-    if (File.Exists(pgCtl))
+    if (Program.IsDesktopMode)
     {
+        Program.EnsureDesktopConfig();
         await Program.StartPostgreSqlAsync();
     }
 }
@@ -74,6 +79,19 @@ var isSetupMode = string.IsNullOrWhiteSpace(anthropicApiKey);
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("Default")
     ?? "Host=localhost;Port=5432;Database=archive_search;Username=archive;Password=archive";
+
+// Safety net: in desktop mode, ensure connection string targets port 5433 regardless
+// of config file state. Catches deleted/stale config or wrong env var.
+if (Program.IsDesktopMode && !connectionString.Contains($"Port={Program.DesktopPgPort}", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("[PostgreSQL] Desktop mode: overriding connection string to port " + Program.DesktopPgPort);
+    if (connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase))
+        connectionString = Regex.Replace(
+            connectionString, @"Port=\d+", $"Port={Program.DesktopPgPort}", RegexOptions.IgnoreCase);
+    else
+        connectionString = connectionString.Replace("Host=localhost;",
+            $"Host=localhost;Port={Program.DesktopPgPort};");
+}
 
 // ── Services ───────────────────────────────────────────────────────────────
 
@@ -173,12 +191,20 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
+        var sanitizedConn = connectionString.Contains("Password=")
+            ? connectionString[..connectionString.IndexOf("Password=")] + "Password=***"
+            : connectionString;
         logger.LogError(ex, "Failed to connect to database or apply migrations. " +
-                            "Ensure PostgreSQL is running on the configured port. " +
-                            "Connection string: {ConnectionString}",
-                            connectionString.Contains("Password=")
-                                ? connectionString[..connectionString.IndexOf("Password=")] + "Password=***"
-                                : connectionString);
+                            "Connection string: {ConnectionString}", sanitizedConn);
+
+        if (Program.IsDesktopMode)
+        {
+            Program.FatalDesktopError(
+                "Could not connect to the database.\n\n" +
+                $"Connection: {sanitizedConn}\n\n" +
+                "PostgreSQL may have started but is not responding, " +
+                "or the database may need to be reinitialized.");
+        }
     }
 }
 
@@ -210,9 +236,115 @@ public class SetupState(bool isSetupMode, string localSettingsPath)
 // Enables WebApplicationFactory<Program> discovery for integration tests
 public partial class Program
 {
+    // ── Desktop PostgreSQL constants ──────────────────────────────────────────
+    internal const int DesktopPgPort = 5433;
+    private const string DesktopConnectionString =
+        "Host=localhost;Port=5433;Database=archive_search;Username=archive;Password=archive";
+    private const int PgStartMaxAttempts = 3;
+    private static readonly int[] PgRetryDelaysMs = [2000, 4000];
+
+    /// <summary>True when the bundled pg_ctl.exe exists (desktop/installer mode).</summary>
+    internal static readonly bool IsDesktopMode =
+        File.Exists(Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe"));
+
+    // ── Fatal error dialog (P/Invoke) ────────────────────────────────────────
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
+    private const uint MB_OK = 0x0;
+    private const uint MB_ICONERROR = 0x10;
+
     /// <summary>
-    /// Starts the bundled PostgreSQL instance using pg_ctl if it is not already running.
-    /// PostgreSQL runs on port 5433 (desktop port) with the data directory at pgsql/data/.
+    /// Shows a native Windows error dialog and exits the process.
+    /// Used only in desktop mode when a fatal startup error occurs.
+    /// </summary>
+    [DoesNotReturn]
+    internal static void FatalDesktopError(string message)
+    {
+        var fullMessage = message + "\n\n" +
+            "Troubleshooting:\n" +
+            "  1. Check if another instance of AIchivist is running\n" +
+            "  2. Check if port 5433 is in use by another program\n" +
+            "  3. Try restarting your computer\n" +
+            "  4. Reinstall AIchivist if the problem persists";
+
+        Console.Error.WriteLine($"[FATAL] {message}");
+
+        try { MessageBox(IntPtr.Zero, fullMessage, "AIchivist \u2014 Startup Error", MB_OK | MB_ICONERROR); }
+        catch { /* P/Invoke failure should not prevent exit */ }
+
+        Environment.Exit(1);
+    }
+
+    // ── Config self-healing ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Ensures appsettings.local.json exists with the desktop connection string (port 5433).
+    /// Regenerates if missing; updates if present but wrong port. Preserves other keys (API key).
+    /// Called before WebApplication.CreateBuilder so the file is present for AddJsonFile.
+    /// </summary>
+    internal static void EnsureDesktopConfig()
+    {
+        var configDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AIchivist", "config");
+        var configPath = Path.Combine(configDir, "appsettings.local.json");
+
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                var existingNode = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject();
+                var connStr = existingNode?["ConnectionStrings"]?["Default"]?.GetValue<string>();
+                if (connStr != null && connStr.Contains($"Port={DesktopPgPort}", StringComparison.OrdinalIgnoreCase))
+                    return; // Config looks good
+            }
+
+            // File is missing or has wrong port — fix it
+            Console.WriteLine($"[PostgreSQL] Config self-heal: ensuring desktop connection string in {configPath}");
+            Directory.CreateDirectory(configDir);
+
+            if (File.Exists(configPath))
+            {
+                // Preserve existing keys (e.g. API key) while fixing connection string
+                var node = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject()
+                           ?? new JsonObject();
+                var connStrings = node["ConnectionStrings"]?.AsObject()
+                                  ?? new JsonObject();
+                connStrings["Default"] = DesktopConnectionString;
+                node["ConnectionStrings"] = connStrings;
+                File.WriteAllText(configPath, node.ToJsonString(
+                    new JsonSerializerOptions { WriteIndented = true }));
+            }
+            else
+            {
+                var newConfig = new JsonObject
+                {
+                    ["ConnectionStrings"] = new JsonObject
+                    {
+                        ["Default"] = DesktopConnectionString
+                    }
+                };
+                File.WriteAllText(configPath, newConfig.ToJsonString(
+                    new JsonSerializerOptions { WriteIndented = true }));
+            }
+
+            Console.WriteLine("[PostgreSQL] Config self-heal complete.");
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: the in-memory connection string override will handle this
+            Console.Error.WriteLine($"[PostgreSQL] Config self-heal failed: {ex.Message}");
+        }
+    }
+
+    // ── PostgreSQL lifecycle ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts the bundled PostgreSQL instance with retry logic (up to 3 attempts).
+    /// Validates connectivity with pg_isready after each attempt.
+    /// Calls FatalDesktopError if all attempts fail.
     /// </summary>
     internal static async Task StartPostgreSqlAsync()
     {
@@ -227,78 +359,176 @@ public partial class Program
 
         if (!Directory.Exists(dataDir))
         {
-            Console.Error.WriteLine($"[PostgreSQL] Data directory not found: {dataDir}");
+            FatalDesktopError(
+                "PostgreSQL data directory not found.\n\n" +
+                $"Expected: {dataDir}\n\n" +
+                "This usually means the installer did not complete successfully.");
             return;
         }
 
+        // Check if already running and connectable
+        if (await IsPgRunning(pgCtl, dataDir))
+        {
+            Console.WriteLine("[PostgreSQL] Already running.");
+            if (await WaitForPgReady(pgCtl, timeoutSeconds: 5))
+            {
+                Console.WriteLine("[PostgreSQL] Verified accepting connections.");
+                return;
+            }
+            // Running but not accepting connections — stop and restart
+            Console.WriteLine("[PostgreSQL] Running but not accepting connections. Restarting...");
+            StopPostgreSql();
+            await Task.Delay(2000); // Let the OS release the port
+        }
+
+        // Attempt startup with retries
+        for (int attempt = 1; attempt <= PgStartMaxAttempts; attempt++)
+        {
+            Console.WriteLine($"[PostgreSQL] Starting... (attempt {attempt}/{PgStartMaxAttempts})");
+
+            try
+            {
+                using var startProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = pgCtl,
+                        Arguments = $"start -D \"{dataDir}\" -w -t 15 -o \"-p {DesktopPgPort}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                startProcess.Start();
+
+                var stdoutTask = startProcess.StandardOutput.ReadToEndAsync();
+                var stderrTask = startProcess.StandardError.ReadToEndAsync();
+                await startProcess.WaitForExitAsync();
+                var stdout = await stdoutTask;
+                var stderr = await stderrTask;
+
+                if (startProcess.ExitCode == 0)
+                {
+                    // pg_ctl reported success — validate with pg_isready
+                    if (await WaitForPgReady(pgCtl, timeoutSeconds: 10))
+                    {
+                        Console.WriteLine($"[PostgreSQL] Started successfully on port {DesktopPgPort}.");
+                        return;
+                    }
+                    Console.Error.WriteLine("[PostgreSQL] pg_ctl succeeded but not accepting connections.");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"[PostgreSQL] pg_ctl start failed (exit code {startProcess.ExitCode}).");
+                    if (!string.IsNullOrWhiteSpace(stdout))
+                        Console.Error.WriteLine($"[PostgreSQL] stdout: {stdout.Trim()}");
+                    if (!string.IsNullOrWhiteSpace(stderr))
+                        Console.Error.WriteLine($"[PostgreSQL] stderr: {stderr.Trim()}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[PostgreSQL] Startup attempt {attempt} error: {ex.Message}");
+            }
+
+            // Wait before retrying (unless last attempt)
+            if (attempt < PgStartMaxAttempts)
+            {
+                var delayIdx = Math.Min(attempt - 1, PgRetryDelaysMs.Length - 1);
+                var delayMs = PgRetryDelaysMs[delayIdx];
+                Console.WriteLine($"[PostgreSQL] Waiting {delayMs / 1000}s before retry...");
+                await Task.Delay(delayMs);
+            }
+        }
+
+        // All attempts exhausted
+        FatalDesktopError(
+            $"PostgreSQL failed to start after {PgStartMaxAttempts} attempts.\n\n" +
+            "Possible causes:\n" +
+            "  \u2022 Another program is using port 5433\n" +
+            "  \u2022 Corrupted database files\n" +
+            "  \u2022 Antivirus software blocking PostgreSQL");
+    }
+
+    /// <summary>Checks if pg_ctl reports PostgreSQL as running.</summary>
+    private static async Task<bool> IsPgRunning(string pgCtl, string dataDir)
+    {
         try
         {
-            // Check if PostgreSQL is already running
-            using var statusProcess = new Process
+            using var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = pgCtl,
                     Arguments = $"status -D \"{dataDir}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
             };
-
-            statusProcess.Start();
-            await statusProcess.WaitForExitAsync();
-
-            // Exit code 0 means PostgreSQL is already running
-            if (statusProcess.ExitCode == 0)
-            {
-                Console.WriteLine("[PostgreSQL] Already running, skipping startup.");
-                return;
-            }
-
-            // Start PostgreSQL
-            Console.WriteLine("[PostgreSQL] Starting...");
-            using var startProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = pgCtl,
-                    Arguments = $"start -D \"{dataDir}\" -w -o \"-p 5433\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            startProcess.Start();
-
-            // Read stdout and stderr concurrently to avoid deadlock
-            var stdoutTask = startProcess.StandardOutput.ReadToEndAsync();
-            var stderrTask = startProcess.StandardError.ReadToEndAsync();
-            await startProcess.WaitForExitAsync();
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (startProcess.ExitCode == 0)
-            {
-                Console.WriteLine("[PostgreSQL] Started successfully on port 5433.");
-            }
-            else
-            {
-                Console.Error.WriteLine($"[PostgreSQL] Failed to start (exit code {startProcess.ExitCode}).");
-                if (!string.IsNullOrWhiteSpace(stdout))
-                    Console.Error.WriteLine($"[PostgreSQL] stdout: {stdout.Trim()}");
-                if (!string.IsNullOrWhiteSpace(stderr))
-                    Console.Error.WriteLine($"[PostgreSQL] stderr: {stderr.Trim()}");
-                return;
-            }
+            process.Start();
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
         }
-        catch (Exception ex)
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Polls pg_isready to confirm PostgreSQL is accepting connections.
+    /// Falls back to TCP connect if pg_isready.exe is not available.
+    /// </summary>
+    private static async Task<bool> WaitForPgReady(string pgCtl, int timeoutSeconds)
+    {
+        var pgIsReady = Path.Combine(Path.GetDirectoryName(pgCtl)!, "pg_isready.exe");
+        if (!File.Exists(pgIsReady))
+            return await WaitForTcpPort(DesktopPgPort, timeoutSeconds);
+
+        for (int i = 0; i < timeoutSeconds; i++)
         {
-            Console.Error.WriteLine($"[PostgreSQL] Error during startup: {ex.Message}");
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = pgIsReady,
+                        Arguments = $"-p {DesktopPgPort} -t 1",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                await process.WaitForExitAsync();
+                if (process.ExitCode == 0) return true;
+            }
+            catch { /* retry */ }
+            if (i < timeoutSeconds - 1)
+                await Task.Delay(1000);
         }
+        return false;
+    }
+
+    /// <summary>Fallback connectivity check via TCP socket.</summary>
+    private static async Task<bool> WaitForTcpPort(int port, int timeoutSeconds)
+    {
+        for (int i = 0; i < timeoutSeconds; i++)
+        {
+            try
+            {
+                using var client = new TcpClient();
+                await client.ConnectAsync("localhost", port);
+                return true;
+            }
+            catch { /* retry */ }
+            if (i < timeoutSeconds - 1)
+                await Task.Delay(1000);
+        }
+        return false;
     }
 
     /// <summary>
