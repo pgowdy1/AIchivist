@@ -61,7 +61,8 @@ var isSetupMode = string.IsNullOrWhiteSpace(anthropicApiKey);
 
 // SQLite connection string — resolve relative to the executable directory so the
 // installed app finds {app}\data\archive.db regardless of the working directory.
-var connectionString = builder.Configuration.GetConnectionString("Default")
+var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=archive.db";
 
 if (!builder.Environment.IsDevelopment()
@@ -162,7 +163,9 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to connect to database or apply migrations.");
+        logger.LogCritical(ex, "Failed to connect to database or apply migrations. The application may not function correctly.");
+        if (!app.Environment.IsDevelopment())
+            throw;
     }
 }
 

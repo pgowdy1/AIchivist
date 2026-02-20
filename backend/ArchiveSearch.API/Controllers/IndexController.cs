@@ -33,12 +33,12 @@ public class IndexController(
         }
         catch (DirectoryNotFoundException)
         {
-            return BadRequest(new { error = $"Directory not found: {request.CollectionsPath}" });
+            return BadRequest(new { error = "The specified collections directory was not found." });
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Indexing failed");
-            return StatusCode(500, new { error = ex.Message });
+            return StatusCode(500, new { error = "An error occurred during indexing." });
         }
     }
 }

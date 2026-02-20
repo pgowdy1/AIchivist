@@ -20,7 +20,7 @@ public class ArchiveContext(DbContextOptions<ArchiveContext> options) : DbContex
 
         var stringArrayComparer = new ValueComparer<string[]>(
             (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
-            v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+            v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item == null ? 0 : item.GetHashCode())),
             v => v.ToArray());
 
         modelBuilder.Entity<CollectionEntity>(entity =>

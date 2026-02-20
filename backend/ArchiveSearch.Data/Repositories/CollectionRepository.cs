@@ -19,6 +19,8 @@ public class CollectionRepository(ArchiveContext context)
                 SELECT c.* FROM collections c
                 INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
                 WHERE collections_fts MATCH {ftsQuery}
+                -- bm25() returns negative values; more negative = more relevant.
+                -- Ascending sort (default) puts best matches first.
                 ORDER BY bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                 LIMIT {limit}
                 """)
@@ -56,6 +58,8 @@ public class CollectionRepository(ArchiveContext context)
                         SELECT c.* FROM collections c
                         INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
                         WHERE collections_fts MATCH {ftsQuery}
+                        -- bm25() returns negative values; more negative = more relevant.
+                        -- Ascending sort (default) puts best matches first.
                         ORDER BY
                             bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                             + CASE
@@ -104,8 +108,8 @@ public class CollectionRepository(ArchiveContext context)
             SELECT
                 collection_unitid,
                 coalesce(title, ''),
-                coalesce(abstract, '') || ' ' || coalesce(subjects, '[]') || ' ' || coalesce(persnames, '[]') || ' ' || coalesce(geognames, '[]'),
-                coalesce(scope_content, '') || ' ' || coalesce(biog_hist, '') || ' ' || coalesce(corpnames, '[]') || ' ' || coalesce(genres, '[]') || ' ' || coalesce(series_titles, '[]')
+                coalesce(abstract, '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(subjects)), '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(persnames)), '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(geognames)), ''),
+                coalesce(scope_content, '') || ' ' || coalesce(biog_hist, '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(corpnames)), '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(genres)), '') || ' ' || coalesce((SELECT group_concat(value, ' ') FROM json_each(series_titles)), '')
             FROM collections
             """);
         await transaction.CommitAsync();
@@ -167,9 +171,9 @@ public class CollectionRepository(ArchiveContext context)
 
         if (sourceTerms.Count == 0) return [];
 
-        // Build an FTS5-compatible query string from the terms (OR-joined quoted phrases)
+        // Build an FTS5-compatible query string from the terms (OR-joined, sanitized)
         var ftsQuery = string.Join(" OR ",
-            sourceTerms.Select(t => $"\"{t.Replace("\"", "", StringComparison.Ordinal)}\""));
+            sourceTerms.Select(SanitizeFts5Query));
 
         // 3. Get up to 40 candidates via FTS5 (excluding the source itself)
         List<CollectionEntity> candidates;
@@ -181,6 +185,7 @@ public class CollectionRepository(ArchiveContext context)
                     INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
                     WHERE collections_fts MATCH {ftsQuery}
                       AND c.collection_unitid != {unitId}
+                    -- bm25() returns negative values; more negative = more relevant.
                     ORDER BY bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                     LIMIT 40
                     """)
