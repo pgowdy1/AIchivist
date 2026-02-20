@@ -59,9 +59,17 @@ builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnCha
 var anthropicApiKey = builder.Configuration["ANTHROPIC_API_KEY"];
 var isSetupMode = string.IsNullOrWhiteSpace(anthropicApiKey);
 
-// SQLite connection string
+// SQLite connection string — resolve relative to the executable directory so the
+// installed app finds {app}\data\archive.db regardless of the working directory.
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=archive.db";
+
+if (!builder.Environment.IsDevelopment()
+    && connectionString == "Data Source=archive.db")
+{
+    var dbPath = Path.Combine(AppContext.BaseDirectory, "data", "archive.db");
+    connectionString = $"Data Source={dbPath}";
+}
 
 // ── Services ───────────────────────────────────────────────────────────────
 
