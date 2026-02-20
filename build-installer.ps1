@@ -14,6 +14,8 @@ $frontendDir = Join-Path $root "frontend"
 $backendDir = Join-Path $root "backend"
 $apiProject = Join-Path $backendDir "ArchiveSearch.API"
 $testProject = Join-Path $backendDir "ArchiveSearch.Tests"
+$indexerProject = Join-Path $backendDir "ArchiveSearch.Indexer"
+$collectionsDir = Join-Path $root "collections"
 $installerDir = Join-Path $root "installer"
 $publishDir = Join-Path $installerDir "publish"
 $wwwrootDir = Join-Path $publishDir "wwwroot"
@@ -86,9 +88,38 @@ Assert-Step (Test-Path (Join-Path $wwwrootDir "index.html")) "index.html present
 $wwwrootFiles = (Get-ChildItem $wwwrootDir -Recurse -File).Count
 Assert-Step ($wwwrootFiles -gt 1) "wwwroot has $wwwrootFiles files"
 
-# -- Step 5: Compile Inno Setup installer ──────────────────────────────────
+# -- Step 5: Build pre-indexed SQLite database ─────────────────────────────
 Write-Host ""
-Write-Host "Step 5: Compiling Inno Setup installer..." -ForegroundColor Yellow
+Write-Host "Step 5: Indexing EAD collections into archive.db..." -ForegroundColor Yellow
+
+$installerDataDir = Join-Path $installerDir "data"
+$archiveDbPath = Join-Path $installerDataDir "archive.db"
+
+if (-not (Test-Path $collectionsDir)) {
+    Write-Host "  [SKIP] collections/ directory not found at $collectionsDir" -ForegroundColor DarkYellow
+    Write-Host "         Copy EAD XML files to collections/ to build a pre-indexed database." -ForegroundColor DarkYellow
+} else {
+    # Remove stale database before re-indexing
+    foreach ($f in @($archiveDbPath, "$archiveDbPath-shm", "$archiveDbPath-wal")) {
+        if (Test-Path $f) { Remove-Item $f -Force }
+    }
+    New-Item -ItemType Directory -Force -Path $installerDataDir | Out-Null
+
+    dotnet run --project $indexerProject -c Release -- `
+        --input $collectionsDir `
+        --output $archiveDbPath 2>&1
+
+    Assert-Step ($LASTEXITCODE -eq 0) "Indexing completed successfully"
+    Assert-Step (Test-Path $archiveDbPath) "archive.db created at installer/data/"
+
+    $dbSizeMB = [math]::Round((Get-Item $archiveDbPath).Length / 1MB, 1)
+    Assert-Step ($dbSizeMB -gt 1) "archive.db is ${dbSizeMB}MB (not empty)"
+    Write-Host "  archive.db: ${dbSizeMB}MB" -ForegroundColor Gray
+}
+
+# -- Step 6: Compile Inno Setup installer ──────────────────────────────────
+Write-Host ""
+Write-Host "Step 6: Compiling Inno Setup installer..." -ForegroundColor Yellow
 
 $issFile = Join-Path $installerDir "AIchivist.iss"
 $isccPaths = @(

@@ -45,6 +45,9 @@ installer/
 *.bak
 *.sql.gz
 
+# EAD XML source collections (large, not committed)
+collections/
+
 # OS
 .DS_Store
 Thumbs.db

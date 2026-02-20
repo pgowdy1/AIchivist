@@ -1,4 +1,4 @@
-using ArchiveSearch.API.Services;
+using ArchiveSearch.Data;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.AspNetCore.Mvc;
 

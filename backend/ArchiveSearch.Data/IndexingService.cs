@@ -2,7 +2,7 @@ using ArchiveSearch.Core.Parsing;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.Extensions.Logging;
 
-namespace ArchiveSearch.API.Services;
+namespace ArchiveSearch.Data;
 
 public class IndexResult
 {
