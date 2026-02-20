@@ -18,7 +18,7 @@ You write README files that people actually read. A developer should understand 
 
 ## Project Context
 
-**AIchivist** — an AI-powered search tool for WSU's archival collections. Angular 21 frontend + ASP.NET Core backend + PostgreSQL. Packaged as a Windows desktop installer via Inno Setup.
+**AIchivist** — an AI-powered search tool for WSU's archival collections. Angular 21 frontend + ASP.NET Core backend + SQLite (FTS5). Packaged as a Windows desktop installer via Inno Setup.
 
 ## README Blueprint
 

@@ -1,11 +1,10 @@
-# ── AIchivist Installer Build Script ───────────────────────────────────────
-# Builds the full installer from source: frontend → backend → wwwroot → tests → Inno Setup
+# -- AIchivist Installer Build Script ───────────────────────────────────────
+# Builds the full installer from source: frontend -> backend -> wwwroot -> tests -> Inno Setup
 #
 # Prerequisites:
 #   - Node.js + npm
 #   - .NET 10 SDK
 #   - Inno Setup 6 (ISCC.exe on PATH or at default location)
-#   - PostgreSQL 16 binaries in installer/pgsql/ (download from EDB)
 #
 # Usage: .\build-installer.ps1
 
@@ -15,10 +14,11 @@ $frontendDir = Join-Path $root "frontend"
 $backendDir = Join-Path $root "backend"
 $apiProject = Join-Path $backendDir "ArchiveSearch.API"
 $testProject = Join-Path $backendDir "ArchiveSearch.Tests"
+$indexerProject = Join-Path $backendDir "ArchiveSearch.Indexer"
+$collectionsDir = Join-Path $root "collections"
 $installerDir = Join-Path $root "installer"
 $publishDir = Join-Path $installerDir "publish"
 $wwwrootDir = Join-Path $publishDir "wwwroot"
-$pgsqlDir = Join-Path $installerDir "pgsql"
 $outputDir = Join-Path $installerDir "output"
 
 $startTime = Get-Date
@@ -37,7 +37,7 @@ Write-Host ""
 Write-Host "===== AIchivist Installer Build =====" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Step 1: Build Angular frontend ────────────────────────────────────────
+# -- Step 1: Build Angular frontend ────────────────────────────────────────
 Write-Host "Step 1: Building Angular frontend..." -ForegroundColor Yellow
 Push-Location $frontendDir
 npm ci --silent 2>&1 | Out-Null
@@ -49,13 +49,13 @@ Assert-Step ($frontendExitCode -eq 0) "Frontend build succeeded"
 $indexHtml = Join-Path $frontendDir "dist\frontend\browser\index.html"
 Assert-Step (Test-Path $indexHtml) "index.html exists in frontend dist output"
 
-# ── Step 2: Run backend tests ─────────────────────────────────────────────
+# -- Step 2: Run backend tests ─────────────────────────────────────────────
 Write-Host ""
 Write-Host "Step 2: Running backend tests..." -ForegroundColor Yellow
 dotnet test $testProject --verbosity quiet 2>&1
 Assert-Step ($LASTEXITCODE -eq 0) "All backend tests passed"
 
-# ── Step 3: Publish .NET backend (self-contained, win-x64) ───────────────
+# -- Step 3: Publish .NET backend (self-contained, win-x64) ───────────────
 Write-Host ""
 Write-Host "Step 3: Publishing .NET backend..." -ForegroundColor Yellow
 
@@ -75,7 +75,7 @@ Assert-Step (Test-Path $exePath) "AIchivist.exe exists in publish output"
 $exeSizeMB = [math]::Round((Get-Item $exePath).Length / 1MB, 1)
 Assert-Step ($exeSizeMB -gt 20 -and $exeSizeMB -lt 200) "Exe size is ${exeSizeMB}MB (expected 20-200MB)"
 
-# ── Step 4: Copy Angular build output to wwwroot ──────────────────────────
+# -- Step 4: Copy Angular build output to wwwroot ──────────────────────────
 Write-Host ""
 Write-Host "Step 4: Copying frontend to wwwroot..." -ForegroundColor Yellow
 
@@ -88,40 +88,36 @@ Assert-Step (Test-Path (Join-Path $wwwrootDir "index.html")) "index.html present
 $wwwrootFiles = (Get-ChildItem $wwwrootDir -Recurse -File).Count
 Assert-Step ($wwwrootFiles -gt 1) "wwwroot has $wwwrootFiles files"
 
-# ── Step 5: Verify PostgreSQL binaries ────────────────────────────────────
+# -- Step 5: Build pre-indexed SQLite database ─────────────────────────────
 Write-Host ""
-Write-Host "Step 5: Verifying PostgreSQL binaries..." -ForegroundColor Yellow
+Write-Host "Step 5: Indexing EAD collections into archive.db..." -ForegroundColor Yellow
 
-$pgCtl = Join-Path $pgsqlDir "bin\pg_ctl.exe"
-if (Test-Path $pgCtl) {
-    Assert-Step $true "PostgreSQL binaries found at $pgsqlDir"
+$installerDataDir = Join-Path $installerDir "data"
+$archiveDbPath = Join-Path $installerDataDir "archive.db"
 
-    # Validate PostgreSQL version is 16.x
-    $pgVersion = & $pgCtl --version 2>&1
-    if ($pgVersion -match "16\.") {
-        Assert-Step $true "PostgreSQL version: $pgVersion"
-    } else {
-        Write-Host "  [WARN] Expected PostgreSQL 16, got: $pgVersion" -ForegroundColor DarkYellow
-        Write-Host "         Mismatched versions may cause runtime failures." -ForegroundColor DarkYellow
+if (-not (Test-Path $collectionsDir)) {
+    Write-Host "  [SKIP] collections/ directory not found at $collectionsDir" -ForegroundColor DarkYellow
+    Write-Host "         Copy EAD XML files to collections/ to build a pre-indexed database." -ForegroundColor DarkYellow
+} else {
+    # Remove stale database before re-indexing
+    foreach ($f in @($archiveDbPath, "$archiveDbPath-shm", "$archiveDbPath-wal")) {
+        if (Test-Path $f) { Remove-Item $f -Force }
     }
-} else {
-    Write-Host "  [SKIP] PostgreSQL binaries not found at $pgsqlDir" -ForegroundColor DarkYellow
-    Write-Host "         Download from https://www.enterprisedb.com/download-postgresql-binaries" -ForegroundColor DarkYellow
-    Write-Host "         Extract pgsql/ directory to: $pgsqlDir" -ForegroundColor DarkYellow
+    New-Item -ItemType Directory -Force -Path $installerDataDir | Out-Null
+
+    dotnet run --project $indexerProject -c Release -- `
+        --input $collectionsDir `
+        --output $archiveDbPath 2>&1
+
+    Assert-Step ($LASTEXITCODE -eq 0) "Indexing completed successfully"
+    Assert-Step (Test-Path $archiveDbPath) "archive.db created at installer/data/"
+
+    $dbSizeMB = [math]::Round((Get-Item $archiveDbPath).Length / 1MB, 1)
+    Assert-Step ($dbSizeMB -gt 1) "archive.db is ${dbSizeMB}MB (not empty)"
+    Write-Host "  archive.db: ${dbSizeMB}MB" -ForegroundColor Gray
 }
 
-# Check for pre-built database dump
-$dumpFile = Join-Path $root "installer\scripts\archive_search.dump"
-if (Test-Path $dumpFile) {
-    $dumpSizeMB = [math]::Round((Get-Item $dumpFile).Length / 1MB, 1)
-    Assert-Step $true "Database dump found (${dumpSizeMB}MB)"
-} else {
-    Write-Host "  [WARN] Database dump not found at: $dumpFile" -ForegroundColor DarkYellow
-    Write-Host "         The installed app will have an EMPTY database (no search data)." -ForegroundColor DarkYellow
-    Write-Host "         Generate a dump with: pg_dump -Fc archive_search > installer/scripts/archive_search.dump" -ForegroundColor DarkYellow
-}
-
-# ── Step 6: Compile Inno Setup installer ──────────────────────────────────
+# -- Step 6: Compile Inno Setup installer ──────────────────────────────────
 Write-Host ""
 Write-Host "Step 6: Compiling Inno Setup installer..." -ForegroundColor Yellow
 
@@ -151,7 +147,7 @@ if ($iscc) {
     Write-Host "         The publish output is ready at: $publishDir" -ForegroundColor DarkYellow
 }
 
-# ── Summary ───────────────────────────────────────────────────────────────
+# -- Summary ───────────────────────────────────────────────────────────────
 $elapsed = (Get-Date) - $startTime
 Write-Host ""
 Write-Host "===== Build Complete =====" -ForegroundColor Cyan
@@ -163,7 +159,7 @@ Write-Host "  wwwroot files: $wwwrootFiles" -ForegroundColor Gray
 if ($iscc -and (Test-Path (Join-Path $outputDir "AIchivist-Setup-1.0.0.exe"))) {
     Write-Host "  Installer: $(Join-Path $outputDir 'AIchivist-Setup-1.0.0.exe')" -ForegroundColor Green
 } else {
-    Write-Host "  Installer: [not built - install Inno Setup 6 or add PostgreSQL binaries]" -ForegroundColor DarkYellow
+    Write-Host "  Installer: [not built - install Inno Setup 6]" -ForegroundColor DarkYellow
 }
 
 Write-Host ""

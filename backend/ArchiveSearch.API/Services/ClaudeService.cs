@@ -43,7 +43,7 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
             - Broader and narrower subject terms
             - Related Library of Congress subject headings
 
-            Each phrase should be 1-4 words. These will be used as PostgreSQL full-text search
+            Each phrase should be 1-4 words. These will be used as full-text search
             queries, so use natural search terms, not full sentences.
 
             Return ONLY a JSON object with these fields:
@@ -204,7 +204,7 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
         return sb.ToString().Trim();
     }
 
-    private static List<RankedResult> ParseRankedResults(string json)
+    private List<RankedResult> ParseRankedResults(string json)
     {
         try
         {
@@ -212,13 +212,14 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             return JsonSerializer.Deserialize<List<RankedResult>>(cleaned, options) ?? [];
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogDebug(ex, "Failed to parse ranked results JSON: {Json}", json[..Math.Min(200, json.Length)]);
             return [];
         }
     }
 
-    private static QueryExpansionResult ParseExpansionResult(string json)
+    private QueryExpansionResult ParseExpansionResult(string json)
     {
         try
         {
@@ -238,8 +239,9 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogDebug(ex, "Failed to parse expansion result JSON: {Json}", json[..Math.Min(200, json.Length)]);
             return new QueryExpansionResult();
         }
     }

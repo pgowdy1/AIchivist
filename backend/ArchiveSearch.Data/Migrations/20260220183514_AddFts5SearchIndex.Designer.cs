@@ -4,131 +4,114 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using NpgsqlTypes;
 
 #nullable disable
 
 namespace ArchiveSearch.Data.Migrations
 {
     [DbContext(typeof(ArchiveContext))]
-    [Migration("20260212172228_AddDateIndex")]
-    partial class AddDateIndex
+    [Migration("20260220183514_AddFts5SearchIndex")]
+    partial class AddFts5SearchIndex
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
-
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
 
             modelBuilder.Entity("ArchiveSearch.Data.Entities.CollectionEntity", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
+                        .HasColumnType("INTEGER")
                         .HasColumnName("id");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
                     b.Property<string>("Abstract")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("abstract");
 
                     b.Property<string>("BiogHist")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("biog_hist");
 
                     b.Property<string>("CollectionUnitId")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasColumnType("TEXT")
                         .HasColumnName("collection_unitid");
 
                     b.Property<string>("CompactLine")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("compact_line");
 
-                    b.PrimitiveCollection<string[]>("Corpnames")
+                    b.Property<string>("Corpnames")
                         .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("corpnames");
 
                     b.Property<int?>("DateEnd")
-                        .HasColumnType("integer")
+                        .HasColumnType("INTEGER")
                         .HasColumnName("date_end");
 
                     b.Property<string>("DateRange")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("date_range");
 
                     b.Property<int?>("DateStart")
-                        .HasColumnType("integer")
+                        .HasColumnType("INTEGER")
                         .HasColumnName("date_start");
 
                     b.Property<string>("Extent")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("extent");
 
-                    b.PrimitiveCollection<string[]>("Genres")
+                    b.Property<string>("Genres")
                         .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("genres");
 
-                    b.PrimitiveCollection<string[]>("Geognames")
+                    b.Property<string>("Geognames")
                         .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("geognames");
 
-                    b.PrimitiveCollection<string[]>("Persnames")
+                    b.Property<string>("Persnames")
                         .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("persnames");
 
                     b.Property<string>("Repository")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("repository");
 
                     b.Property<string>("ScopeContent")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("scope_content");
 
-                    b.Property<NpgsqlTsVector>("SearchVector")
+                    b.Property<string>("SeriesTitles")
                         .IsRequired()
-                        .HasColumnType("tsvector")
-                        .HasColumnName("search_vector");
-
-                    b.PrimitiveCollection<string[]>("SeriesTitles")
-                        .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("series_titles");
 
                     b.Property<string>("SourceFile")
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("source_file");
 
-                    b.PrimitiveCollection<string[]>("Subjects")
+                    b.Property<string>("Subjects")
                         .IsRequired()
-                        .HasColumnType("text[]")
+                        .HasColumnType("TEXT")
                         .HasColumnName("subjects");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("TEXT")
                         .HasColumnName("title");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CollectionUnitId")
                         .IsUnique();
-
-                    b.HasIndex("SearchVector");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
 
                     b.ToTable("collections");
                 });

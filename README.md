@@ -10,19 +10,16 @@ AIchivist lets you search the way you think. Ask a question in plain English, an
 
 ## Quick Start
 
-You'll need [Docker](https://www.docker.com/get-started), [.NET 10 SDK](https://dotnet.microsoft.com/download), [Node.js](https://nodejs.org/), and an [Anthropic API key](https://console.anthropic.com/).
+You'll need [.NET 10 SDK](https://dotnet.microsoft.com/download), [Node.js](https://nodejs.org/), and an [Anthropic API key](https://console.anthropic.com/).
 
 ```bash
-# 1. Start the database
-docker-compose up -d
-
-# 2. Set your API key
+# 1. Set your API key
 dotnet user-secrets set "ANTHROPIC_API_KEY" "sk-ant-..." --project backend/ArchiveSearch.API
 
-# 3. Start the backend (auto-applies database migrations)
+# 2. Start the backend (auto-creates SQLite database and applies migrations)
 dotnet run --project backend/ArchiveSearch.API
 
-# 4. In a new terminal — start the frontend
+# 3. In a new terminal — start the frontend
 cd frontend && npm install && npm start
 ```
 
@@ -46,7 +43,7 @@ User Query
                ▼
 ┌─────────────────────────────────────┐
 │  Pass 2: Full-Text Search           │
-│  PostgreSQL searches the catalog    │
+│  SQLite FTS5 searches the catalog   │
 │  using original + expanded terms    │
 │  Weighted by title, abstract,       │
 │  subjects, names, places            │
@@ -82,7 +79,7 @@ Results are cached for 1 hour, so repeated searches are instant.
 |---|---|
 | Frontend | Angular 21 (zoneless, signal-based), SCSS, Vitest |
 | Backend | ASP.NET Core (.NET 10), C# |
-| Database | PostgreSQL 16, Entity Framework Core, GIN-indexed tsvector |
+| Database | SQLite (FTS5), Entity Framework Core |
 | AI | Anthropic Claude — Haiku 4.5 (search), Sonnet 4.5 (chat) |
 
 ## Commands
@@ -105,11 +102,7 @@ npm test        # Run Vitest tests
 
 ### Database
 
-```bash
-docker-compose up -d      # Start PostgreSQL
-docker-compose down       # Stop PostgreSQL
-docker-compose down -v    # Stop and delete all data
-```
+The SQLite database file (`archive.db`) is created automatically on first run -- no setup needed. To reset the database, simply delete the `archive.db` file and restart the backend.
 
 ## API Endpoints
 
@@ -148,13 +141,13 @@ frontend/src/app/
 
 ## Desktop Installer
 
-AIchivist can be packaged as a standalone Windows application with an embedded PostgreSQL database — no Docker, no terminal, no technical setup required.
+AIchivist can be packaged as a standalone Windows application with an embedded SQLite database -- no Docker, no terminal, no technical setup required.
 
 ```powershell
 .\build-installer.ps1    # Builds frontend → runs tests → publishes → compiles installer
 ```
 
-The installer bundles everything into a single `AIchivist-Setup.exe` that handles PostgreSQL service registration, database initialization, and configuration automatically. See [installer/](installer/) for details.
+The installer bundles everything into a single `AIchivist-Setup.exe` that handles database initialization and configuration automatically. See [installer/](installer/) for details.
 
 ## Contributing
 

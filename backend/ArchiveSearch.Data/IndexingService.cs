@@ -2,7 +2,7 @@ using ArchiveSearch.Core.Parsing;
 using ArchiveSearch.Data.Repositories;
 using Microsoft.Extensions.Logging;
 
-namespace ArchiveSearch.API.Services;
+namespace ArchiveSearch.Data;
 
 public class IndexResult
 {
@@ -14,8 +14,8 @@ public class IndexResult
 
 /// <summary>
 /// One-time (or on-demand) indexing service.
-/// Parses all EAD XML files in a directory, upserts them into PostgreSQL,
-/// then refreshes the full-text search vectors.
+/// Parses all EAD XML files in a directory, upserts them into SQLite,
+/// then rebuilds the FTS5 search index.
 /// </summary>
 public class IndexingService(
     CollectionRepository repository,
@@ -79,9 +79,9 @@ public class IndexingService(
             }
         }
 
-        // Populate/refresh the full-text search vectors for all collections
-        logger.LogInformation("Updating full-text search vectors...");
-        await repository.UpdateSearchVectorsAsync();
+        // Rebuild the FTS5 index from the collections table
+        logger.LogInformation("Rebuilding FTS5 search index...");
+        await repository.RebuildFtsIndexAsync();
 
         logger.LogInformation(
             "Indexing complete. Indexed: {Indexed}, Skipped: {Skipped}, Errors: {Errors}",

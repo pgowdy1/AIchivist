@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using NpgsqlTypes;
 
 namespace ArchiveSearch.Data.Entities;
 
@@ -65,7 +64,4 @@ public class CollectionEntity
 
     [Column("source_file")]
     public string? SourceFile { get; set; }
-
-    [Column("search_vector")]
-    public NpgsqlTsVector SearchVector { get; set; } = null!;
 }
