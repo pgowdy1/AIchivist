@@ -69,8 +69,7 @@ var appDataDir = Path.Combine(
     "AIchivist", "config");
 Directory.CreateDirectory(appDataDir);
 var localSettingsPath = Path.Combine(appDataDir, "appsettings.local.json");
-if (!builder.Environment.IsDevelopment())
-    builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
 
 // API key — check User Secrets, environment variable, and local config
 var anthropicApiKey = builder.Configuration["ANTHROPIC_API_KEY"];
@@ -78,7 +77,9 @@ var isSetupMode = string.IsNullOrWhiteSpace(anthropicApiKey);
 
 var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("Default")
-    ?? "Host=localhost;Port=5432;Database=archive_search;Username=archive;Password=archive";
+    ?? (Program.IsDesktopMode
+        ? Program.DesktopConnectionString
+        : "Host=localhost;Port=5432;Database=archive_search;Username=archive;Password=archive");
 
 // Safety net: in desktop mode, ensure connection string targets port 5433 regardless
 // of config file state. Catches deleted/stale config or wrong env var.
@@ -244,8 +245,48 @@ public partial class Program
     private static readonly int[] PgRetryDelaysMs = [2000, 4000];
 
     /// <summary>True when the bundled pg_ctl.exe exists (desktop/installer mode).</summary>
-    internal static readonly bool IsDesktopMode =
-        File.Exists(Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe"));
+    internal static readonly bool IsDesktopMode = DetectDesktopMode();
+
+    /// <summary>Directory containing the application (and pgsql/ subfolder in desktop mode).</summary>
+    internal static readonly string AppDir = ResolveAppDir();
+
+    private static bool DetectDesktopMode()
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe")))
+            return true;
+
+        var exePath = Environment.ProcessPath;
+        if (exePath != null)
+        {
+            var exeDir = Path.GetDirectoryName(exePath);
+            if (exeDir != null && File.Exists(Path.Combine(exeDir, "pgsql", "bin", "pg_ctl.exe")))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string ResolveAppDir()
+    {
+        // Primary: AppContext.BaseDirectory (works for most deployments)
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe")))
+            return AppContext.BaseDirectory;
+
+        // Fallback: executable's actual location (handles single-file publish edge cases
+        // where AppContext.BaseDirectory may point to an extraction directory)
+        var exePath = Environment.ProcessPath;
+        if (exePath != null)
+        {
+            var exeDir = Path.GetDirectoryName(exePath);
+            if (exeDir != null && File.Exists(Path.Combine(exeDir, "pgsql", "bin", "pg_ctl.exe")))
+            {
+                Console.WriteLine($"[Desktop] Detected via executable path: {exeDir}");
+                return exeDir;
+            }
+        }
+
+        return AppContext.BaseDirectory;
+    }
 
     // ── Fatal error dialog (P/Invoke) ────────────────────────────────────────
 
@@ -348,8 +389,8 @@ public partial class Program
     /// </summary>
     internal static async Task StartPostgreSqlAsync()
     {
-        var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
-        var dataDir = Path.Combine(AppContext.BaseDirectory, "pgsql", "data");
+        var pgCtl = Path.Combine(AppDir, "pgsql", "bin", "pg_ctl.exe");
+        var dataDir = Path.Combine(AppDir, "pgsql", "data");
 
         if (!File.Exists(pgCtl))
         {
@@ -537,8 +578,8 @@ public partial class Program
     /// </summary>
     internal static void StopPostgreSql()
     {
-        var pgCtl = Path.Combine(AppContext.BaseDirectory, "pgsql", "bin", "pg_ctl.exe");
-        var dataDir = Path.Combine(AppContext.BaseDirectory, "pgsql", "data");
+        var pgCtl = Path.Combine(AppDir, "pgsql", "bin", "pg_ctl.exe");
+        var dataDir = Path.Combine(AppDir, "pgsql", "data");
 
         if (!File.Exists(pgCtl))
             return;
