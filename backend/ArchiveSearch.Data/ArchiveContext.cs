@@ -1,5 +1,8 @@
+using System.Text.Json;
 using ArchiveSearch.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ArchiveSearch.Data;
 
@@ -9,19 +12,27 @@ public class ArchiveContext(DbContextOptions<ArchiveContext> options) : DbContex
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var jsonOptions = new JsonSerializerOptions();
+
+        var stringArrayConverter = new ValueConverter<string[], string>(
+            v => JsonSerializer.Serialize(v, jsonOptions),
+            v => JsonSerializer.Deserialize<string[]>(v, jsonOptions) ?? Array.Empty<string>());
+
+        var stringArrayComparer = new ValueComparer<string[]>(
+            (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+            v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+            v => v.ToArray());
+
         modelBuilder.Entity<CollectionEntity>(entity =>
         {
             entity.HasIndex(e => e.CollectionUnitId).IsUnique();
-            entity.Property(e => e.Subjects).HasColumnType("text[]");
-            entity.Property(e => e.Persnames).HasColumnType("text[]");
-            entity.Property(e => e.Geognames).HasColumnType("text[]");
-            entity.Property(e => e.Genres).HasColumnType("text[]");
-            entity.Property(e => e.Corpnames).HasColumnType("text[]");
-            entity.Property(e => e.SeriesTitles).HasColumnType("text[]");
 
-            // Weighted tsvector column populated via raw SQL during indexing
-            entity.Property(e => e.SearchVector).HasColumnType("tsvector");
-            entity.HasIndex(e => e.SearchVector).HasMethod("gin");
+            entity.Property(e => e.Subjects).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
+            entity.Property(e => e.Persnames).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
+            entity.Property(e => e.Geognames).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
+            entity.Property(e => e.Genres).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
+            entity.Property(e => e.Corpnames).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
+            entity.Property(e => e.SeriesTitles).HasConversion(stringArrayConverter).Metadata.SetValueComparer(stringArrayComparer);
         });
     }
 }

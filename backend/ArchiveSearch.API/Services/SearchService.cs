@@ -9,7 +9,7 @@ namespace ArchiveSearch.API.Services;
 /// <summary>
 /// Orchestrates the 3-pass hybrid search:
 /// 0. Claude Haiku expands query → 6-8 alternative search phrases
-/// 1. PostgreSQL multi-query FTS → ~30-50 unique candidates
+/// 1. SQLite FTS5 multi-query search → ~30-50 unique candidates
 /// 2. Claude Haiku ranks candidates → top 10 with explanations
 /// Fallback: if Claude fails at any stage, degrades gracefully.
 /// </summary>
@@ -58,7 +58,7 @@ public class SearchService(
             searchQueries = [query];
         }
 
-        // ── Pass 1: Multi-Query FTS (PostgreSQL) ───────────────────────────
+        // ── Pass 1: Multi-Query FTS (SQLite FTS5) ──────────────────────────
         logger.LogInformation("Pass 1 (FTS): Running {Count} search queries", searchQueries.Count);
         var candidates = await repository.MultiQuerySearchAsync(
             searchQueries, perQueryLimit: 15, totalLimit: 50,

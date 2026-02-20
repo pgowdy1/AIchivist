@@ -68,7 +68,7 @@ public class StaticFileServingTests : IClassFixture<TestWebAppFactory>
 }
 
 /// <summary>
-/// Custom WebApplicationFactory that replaces PostgreSQL with InMemory DB,
+/// Custom WebApplicationFactory that replaces SQLite with InMemory DB,
 /// provides a dummy API key, and creates a minimal wwwroot for static file tests.
 /// </summary>
 public class TestWebAppFactory : WebApplicationFactory<Program>
@@ -89,7 +89,7 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove the real PostgreSQL DbContext registration
+            // Remove the real SQLite DbContext registration
             var descriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(DbContextOptions<ArchiveContext>));
             if (descriptor != null)

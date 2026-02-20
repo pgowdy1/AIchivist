@@ -22,7 +22,7 @@ dist/
 # Rider / JetBrains
 .idea/
 
-# Installer (PostgreSQL binaries, build output)
+# Installer build artifacts (publish output, Inno Setup output)
 installer/
 
 # Certificates and private keys
@@ -34,6 +34,11 @@ installer/
 
 # Logs
 *.log
+
+# SQLite runtime databases
+*.db
+*.db-shm
+*.db-wal
 
 # Database dumps and backups
 *.dump

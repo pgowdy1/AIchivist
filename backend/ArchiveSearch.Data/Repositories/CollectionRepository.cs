@@ -2,23 +2,24 @@ using System.Globalization;
 using ArchiveSearch.Core.Models;
 using ArchiveSearch.Data.Entities;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace ArchiveSearch.Data.Repositories;
 
 public class CollectionRepository(ArchiveContext context)
 {
     /// <summary>
-    /// Full-text search using PostgreSQL weighted tsvector + GIN index.
-    /// Returns up to <paramref name="limit"/> collections ordered by cover density rank.
+    /// Full-text search using SQLite FTS5 with weighted bm25 ranking.
+    /// Returns up to <paramref name="limit"/> collections ordered by relevance.
     /// </summary>
     public async Task<List<CollectionEntity>> FullTextSearchAsync(string query, int limit = 25)
     {
+        var ftsQuery = SanitizeFts5Query(query);
         return await context.Collections
             .FromSqlInterpolated($"""
-                SELECT * FROM collections
-                WHERE search_vector @@ websearch_to_tsquery('english', {query})
-                ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', {query})) DESC
+                SELECT c.* FROM collections c
+                INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
+                WHERE collections_fts MATCH {ftsQuery}
+                ORDER BY bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                 LIMIT {limit}
                 """)
             .AsNoTracking()
@@ -26,11 +27,11 @@ public class CollectionRepository(ArchiveContext context)
     }
 
     /// <summary>
-    /// Runs full-text search for each query phrase, merges results, and deduplicates.
+    /// Runs FTS5 search for each query phrase, merges results, and deduplicates.
     /// Each sub-query returns up to <paramref name="perQueryLimit"/> results.
     /// Total unique results capped at <paramref name="totalLimit"/>.
     /// When <paramref name="dateStart"/> and <paramref name="dateEnd"/> are provided,
-    /// collections whose date range overlaps the temporal window receive a +0.5 rank boost.
+    /// collections whose date range overlaps the temporal window receive a rank boost.
     /// </summary>
     public async Task<List<CollectionEntity>> MultiQuerySearchAsync(
         IEnumerable<string> queries, int perQueryLimit = 15, int totalLimit = 50,
@@ -38,7 +39,7 @@ public class CollectionRepository(ArchiveContext context)
     {
         var seen = new HashSet<string>();
         var results = new List<CollectionEntity>();
-        var hasDate = dateStart.HasValue && dateEnd.HasValue;
+        var hasDateInt = (dateStart.HasValue && dateEnd.HasValue) ? 1 : 0;
         // Provide concrete values for SQL parameters even when unused; the CASE guard prevents them from affecting results.
         var sqlDateStart = dateStart ?? 0;
         var sqlDateEnd = dateEnd ?? 0;
@@ -49,20 +50,21 @@ public class CollectionRepository(ArchiveContext context)
 
             try
             {
+                var ftsQuery = SanitizeFts5Query(query);
                 var hits = await context.Collections
                     .FromSqlInterpolated($"""
-                        SELECT * FROM collections
-                        WHERE search_vector @@ websearch_to_tsquery('english', {query})
+                        SELECT c.* FROM collections c
+                        INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
+                        WHERE collections_fts MATCH {ftsQuery}
                         ORDER BY
-                            ts_rank_cd(search_vector, websearch_to_tsquery('english', {query}))
+                            bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                             + CASE
-                                WHEN {hasDate}
-                                     AND date_start IS NOT NULL AND date_end IS NOT NULL
-                                     AND date_start <= {sqlDateEnd} AND date_end >= {sqlDateStart}
-                                THEN 0.5
+                                WHEN {hasDateInt} = 1
+                                     AND c.date_start IS NOT NULL AND c.date_end IS NOT NULL
+                                     AND c.date_start <= {sqlDateEnd} AND c.date_end >= {sqlDateStart}
+                                THEN -0.5
                                 ELSE 0.0
                               END
-                            DESC
                         LIMIT {perQueryLimit}
                         """)
                     .AsNoTracking()
@@ -74,16 +76,14 @@ public class CollectionRepository(ArchiveContext context)
                         results.Add(hit);
                 }
             }
-            catch (Exception ex) when (ex is NpgsqlException npgEx && npgEx.InnerException is System.Net.Sockets.SocketException
-                                      || ex is NpgsqlException { IsTransient: true }
-                                      || ex is InvalidOperationException { Message: var msg } && msg.Contains("connection"))
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
             {
-                // Infrastructure error (PostgreSQL unreachable, connection refused, etc.) — rethrow
+                // Infrastructure error (database unreachable, connection issue, etc.) — rethrow
                 throw;
             }
             catch
             {
-                // Individual sub-query failure (e.g., malformed tsquery from Claude phrase) — skip silently
+                // Individual sub-query failure (e.g., malformed FTS5 query from Claude phrase) — skip silently
             }
         }
 
@@ -91,34 +91,31 @@ public class CollectionRepository(ArchiveContext context)
     }
 
     /// <summary>
-    /// Populates the search_vector column for all rows using weighted tsvector.
+    /// Rebuilds the FTS5 virtual table from the collections table.
     /// Called after bulk insert/upsert during indexing.
+    /// Wrapped in a transaction so a crash never leaves the FTS table empty.
     /// </summary>
-    public async Task UpdateSearchVectorsAsync()
+    public async Task RebuildFtsIndexAsync()
     {
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM collections_fts");
         await context.Database.ExecuteSqlRawAsync("""
-            UPDATE collections SET search_vector =
-                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-                setweight(to_tsvector('english',
-                    coalesce(abstract, '') || ' ' ||
-                    coalesce(array_to_string(subjects, ' '), '') || ' ' ||
-                    coalesce(array_to_string(persnames, ' '), '') || ' ' ||
-                    coalesce(array_to_string(geognames, ' '), '')
-                ), 'B') ||
-                setweight(to_tsvector('english',
-                    coalesce(scope_content, '') || ' ' ||
-                    coalesce(biog_hist, '') || ' ' ||
-                    coalesce(array_to_string(corpnames, ' '), '') || ' ' ||
-                    coalesce(array_to_string(genres, ' '), '') || ' ' ||
-                    coalesce(array_to_string(series_titles, ' '), '')
-                ), 'C')
+            INSERT INTO collections_fts(collection_unitid, title, abstract_subjects, scope_biog_detail)
+            SELECT
+                collection_unitid,
+                coalesce(title, ''),
+                coalesce(abstract, '') || ' ' || coalesce(subjects, '[]') || ' ' || coalesce(persnames, '[]') || ' ' || coalesce(geognames, '[]'),
+                coalesce(scope_content, '') || ' ' || coalesce(biog_hist, '') || ' ' || coalesce(corpnames, '[]') || ' ' || coalesce(genres, '[]') || ' ' || coalesce(series_titles, '[]')
+            FROM collections
             """);
+        await transaction.CommitAsync();
     }
 
     /// <summary>Fetch full records for a set of collection unit IDs.</summary>
     public async Task<List<CollectionEntity>> GetByUnitIdsAsync(IEnumerable<string> unitIds)
     {
         var ids = unitIds.ToList();
+        if (ids.Count == 0) return [];
         return await context.Collections
             .Where(c => ids.Contains(c.CollectionUnitId))
             .AsNoTracking()
@@ -128,19 +125,18 @@ public class CollectionRepository(ArchiveContext context)
     /// <summary>Upsert a batch of parsed documents. Insert new, update existing.</summary>
     public async Task UpsertBatchAsync(IEnumerable<CollectionDocument> documents)
     {
-        foreach (var doc in documents)
-        {
-            var existing = await context.Collections
-                .FirstOrDefaultAsync(c => c.CollectionUnitId == doc.CollectionUnitId);
+        var docList = documents.ToList();
+        var unitIds = docList.Select(d => d.CollectionUnitId).ToList();
+        var existingMap = await context.Collections
+            .Where(c => unitIds.Contains(c.CollectionUnitId))
+            .ToDictionaryAsync(c => c.CollectionUnitId);
 
-            if (existing is null)
-            {
-                context.Collections.Add(MapToEntity(doc));
-            }
-            else
-            {
+        foreach (var doc in docList)
+        {
+            if (existingMap.TryGetValue(doc.CollectionUnitId, out var existing))
                 UpdateEntity(existing, doc);
-            }
+            else
+                context.Collections.Add(MapToEntity(doc));
         }
 
         await context.SaveChangesAsync();
@@ -171,34 +167,33 @@ public class CollectionRepository(ArchiveContext context)
 
         if (sourceTerms.Count == 0) return [];
 
-        // Build a websearch-compatible query string from the terms (OR-joined quoted phrases)
-        var queryString = string.Join(" OR ",
-            sourceTerms.Select(t => string.Concat("\"", t.Replace("\"", "", StringComparison.Ordinal), "\"")));
+        // Build an FTS5-compatible query string from the terms (OR-joined quoted phrases)
+        var ftsQuery = string.Join(" OR ",
+            sourceTerms.Select(t => $"\"{t.Replace("\"", "", StringComparison.Ordinal)}\""));
 
-        // 3. Get up to 40 candidates via FTS (excluding the source itself)
+        // 3. Get up to 40 candidates via FTS5 (excluding the source itself)
         List<CollectionEntity> candidates;
         try
         {
             candidates = await context.Collections
                 .FromSqlInterpolated($"""
-                    SELECT * FROM collections
-                    WHERE collection_unitid != {unitId}
-                      AND search_vector @@ websearch_to_tsquery('english', {queryString})
-                    ORDER BY ts_rank_cd(search_vector, websearch_to_tsquery('english', {queryString})) DESC
+                    SELECT c.* FROM collections c
+                    INNER JOIN collections_fts f ON f.collection_unitid = c.collection_unitid
+                    WHERE collections_fts MATCH {ftsQuery}
+                      AND c.collection_unitid != {unitId}
+                    ORDER BY bm25(collections_fts, 0.0, 10.0, 5.0, 1.0)
                     LIMIT 40
                     """)
                 .AsNoTracking()
                 .ToListAsync();
         }
-        catch (Exception ex) when (ex is NpgsqlException npgEx && npgEx.InnerException is System.Net.Sockets.SocketException
-                                    || ex is NpgsqlException { IsTransient: true }
-                                    || ex is InvalidOperationException { Message: var msg } && msg.Contains("connection"))
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
         {
             throw;
         }
         catch
         {
-            // FTS query may fail if terms produce invalid tsquery — return empty gracefully
+            // FTS5 query may fail if terms produce invalid syntax — return empty gracefully
             return [];
         }
 
@@ -306,5 +301,36 @@ public class CollectionRepository(ArchiveContext context)
         entity.SeriesTitles = [.. doc.SeriesTitles];
         entity.CompactLine = doc.CompactLine;
         entity.SourceFile = doc.SourceFile;
+    }
+
+    private static readonly HashSet<string> Fts5Operators = new(StringComparer.OrdinalIgnoreCase)
+        { "AND", "OR", "NOT", "NEAR" };
+
+    /// <summary>
+    /// Sanitizes a user query string for safe use in FTS5 MATCH expressions.
+    /// Strips special FTS5 syntax characters and quotes each word individually
+    /// to suppress operator interpretation (NOT, AND, OR, NEAR, column filters).
+    /// </summary>
+    private static string SanitizeFts5Query(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return "\"\"";
+        // Remove FTS5 special characters: quotes, wildcards, parens, column filter, initial-token, braces
+        var cleaned = query
+            .Replace("\"", " ", StringComparison.Ordinal)
+            .Replace("*", " ", StringComparison.Ordinal)
+            .Replace("(", " ", StringComparison.Ordinal)
+            .Replace(")", " ", StringComparison.Ordinal)
+            .Replace(":", " ", StringComparison.Ordinal)
+            .Replace("^", " ", StringComparison.Ordinal)
+            .Replace("{", " ", StringComparison.Ordinal)
+            .Replace("}", " ", StringComparison.Ordinal)
+            .Trim();
+        if (string.IsNullOrWhiteSpace(cleaned)) return "\"\"";
+        // Split into words, filter bare FTS5 operators, quote each word to prevent operator interpretation
+        var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !Fts5Operators.Contains(w));
+        var quoted = words.Select(w => $"\"{w}\"");
+        var result = string.Join(" ", quoted);
+        return string.IsNullOrEmpty(result) ? "\"\"" : result;
     }
 }

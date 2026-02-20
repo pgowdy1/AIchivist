@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AIchivist** — an AI-powered search tool for Washington State University's archival collections. Users enter natural-language queries, the system finds relevant archival collections via a 3-pass hybrid search (Claude query expansion → PostgreSQL full-text search → Claude ranking), and provides a chat interface to ask follow-up questions about results.
+**AIchivist** — an AI-powered search tool for Washington State University's archival collections. Users enter natural-language queries, the system finds relevant archival collections via a 3-pass hybrid search (Claude query expansion → SQLite FTS5 search → Claude ranking), and provides a chat interface to ask follow-up questions about results.
 
 ## Tech Stack
 
 - **Frontend:** Angular 21 (zoneless, signal-based), SCSS, Vitest
 - **Backend:** ASP.NET Core (.NET 10), C#
-- **Database:** PostgreSQL 16 (Docker), Entity Framework Core, full-text search with weighted tsvector
+- **Database:** SQLite (FTS5), Entity Framework Core
 - **AI:** Anthropic SDK v12.4.0 — Haiku 4.5 for search, Sonnet 4.5 for chat
 
 ## Commands
@@ -31,7 +31,7 @@ npm test        # Vitest unit tests
 
 ### Database
 ```bash
-docker-compose up -d                            # Start PostgreSQL
+# SQLite database file (archive.db) is created automatically on first run — no setup needed
 dotnet ef migrations add <Name> --project backend/ArchiveSearch.Data --startup-project backend/ArchiveSearch.API
 ```
 
@@ -70,7 +70,7 @@ State management uses Angular signals (`signal()`, `computed()`, `effect()`). No
 ### 3-Pass Search Pipeline
 
 1. **Pass 0 — Query Expansion** (Claude Haiku): Generates 6-8 synonyms/related terms
-2. **Pass 1 — Full-Text Search** (PostgreSQL): Runs FTS for original + expanded queries, deduplicates ~30-50 candidates
+2. **Pass 1 — Full-Text Search** (SQLite FTS5): Runs FTS for original + expanded queries, deduplicates ~30-50 candidates
 3. **Pass 2 — AI Ranking** (Claude Haiku): Scores and ranks top 10 with explanations
 
 Each pass has a fallback: expansion failure → original query only; FTS failure → skip that phrase; ranking failure → use FTS positional order.
@@ -91,7 +91,7 @@ Results are cached 1 hour by SHA256(query).
 - Backend listens on the port shown in console output (check `Properties/launchSettings.json`)
 - Frontend API URL is hardcoded to `http://localhost:5265/api` in service files
 - CORS allows `http://localhost:4200` (configurable via `FrontendOrigin` in appsettings)
-- Connection string: env var `CONNECTION_STRING` → appsettings `ConnectionStrings:Default` → default localhost
+- Connection string: env var `CONNECTION_STRING` → appsettings `ConnectionStrings:Default` → default `Data Source=archive.db`
 
 ## Agent Delegation
 
@@ -116,4 +116,4 @@ Available specialized agents for this project:
 
 ## Database Schema
 
-The `collections` table stores parsed archival collection metadata with a GIN-indexed `search_vector` (tsvector). Weights: **A** = title, **B** = abstract + subjects + names + places, **C** = scope/biog/corps/genres/series. Migrations auto-apply on API startup.
+The `collections` table stores parsed archival collection metadata. Full-text search uses an FTS5 virtual table (`collections_fts`) with porter stemming and weighted columns via `bm25()`: **A** = title (10.0), **B** = abstract + subjects + names + places (5.0), **C** = scope/biog/corps/genres/series (1.0). Migrations auto-apply on API startup.

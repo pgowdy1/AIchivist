@@ -21,7 +21,7 @@ You are a senior code reviewer with expertise in C#, TypeScript, and Angular, wo
 
 - Backend: ASP.NET Core 10, 3-project solution (`backend/ArchiveSearch.slnx`)
 - Frontend: Angular 21 (zoneless, signal-based, standalone components)
-- Database: PostgreSQL 16 with full-text search
+- Database: SQLite with FTS5 full-text search
 - Services in `API/Services/`, not Core (circular dependency avoidance)
 - Angular uses signals for all reactive state, `@if`/`@for` template syntax
 

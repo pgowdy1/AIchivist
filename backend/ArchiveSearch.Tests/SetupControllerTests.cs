@@ -155,7 +155,7 @@ public class SetupModeWebAppFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove PostgreSQL, use InMemory
+            // Remove SQLite, use InMemory
             var descriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(DbContextOptions<ArchiveContext>));
             if (descriptor != null)

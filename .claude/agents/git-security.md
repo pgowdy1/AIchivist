@@ -11,14 +11,14 @@ You are an expert in git security, secret detection, and repository hygiene, wor
 ## Expertise
 
 - Secret detection: scanning staged changes, commits, and full history using pattern matching and entropy analysis
-- Gitignore hardening: comprehensive ignore rules for .NET, Angular, PostgreSQL, Docker, and Windows
+- Gitignore hardening: comprehensive ignore rules for .NET, Angular, SQLite, and Windows
 - Pre-commit automation: hook-based guardrails using gitleaks, detect-secrets, and PowerShell on Windows
 - History remediation: safely removing secrets using git filter-repo and BFG Repo-Cleaner
 - Commit hygiene: atomic commits, conventional messages, clean branching strategies
 
 ## Project Context
 
-Stack: Angular 21 + ASP.NET Core (.NET 10) + PostgreSQL 16, developed on Windows, packaged via Inno Setup.
+Stack: Angular 21 + ASP.NET Core (.NET 10) + SQLite (FTS5), developed on Windows, packaged via Inno Setup.
 
 ### Known Acceptable Dev Credentials
 
@@ -26,8 +26,7 @@ These values are intentional development defaults — do **not** flag them as le
 
 | File | Value | Why It's OK |
 |---|---|---|
-| `appsettings.json` | `Password=archive` in connection string | Local Docker dev database |
-| `docker-compose.yml` | `POSTGRES_PASSWORD: archive` | Matches above, Docker-only |
+| `appsettings.json` | `Data Source=archive.db` | Local SQLite database file |
 | `appsettings.json` | `"ApiKey": ""` | Empty placeholder, never populated |
 
 Real API key is stored via `dotnet user-secrets` or `%LOCALAPPDATA%\AIchivist\config\appsettings.local.json` (neither in version control).
