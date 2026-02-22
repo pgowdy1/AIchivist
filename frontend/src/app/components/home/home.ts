@@ -3,13 +3,14 @@ import { Router } from '@angular/router';
 import { SearchBar } from '../search-bar/search-bar';
 import { ResultsPanel } from '../results-panel/results-panel';
 import { ChatSidebar } from '../chat-sidebar/chat-sidebar';
+import { SettingsDialog } from '../settings-dialog/settings-dialog';
 import { SearchService } from '../../services/search';
 import { SearchResponse } from '../../models/search.models';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-home',
-  imports: [SearchBar, ResultsPanel, ChatSidebar],
+  imports: [SearchBar, ResultsPanel, ChatSidebar, SettingsDialog],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -18,6 +19,7 @@ export class Home {
   loading = signal(false);
   searchResponse = signal<SearchResponse | null>(null);
   error = signal('');
+  showSettings = signal(false);
 
   constructor(private searchService: SearchService, private router: Router) {}
 

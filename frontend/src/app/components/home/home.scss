@@ -27,6 +27,32 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-settings-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  opacity: 0.8;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+.header-settings-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .header-title {
