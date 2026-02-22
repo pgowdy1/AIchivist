@@ -1,13 +1,13 @@
-import { Component, EventEmitter, Output, signal, inject } from '@angular/core';
+import { Component, EventEmitter, Output, signal, inject, HostListener, DestroyRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-settings-dialog',
   template: `
     <div class="settings-backdrop" (click)="onBackdropClick($event)">
-      <div class="settings-card">
+      <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
         <div class="settings-header">
-          <h2 class="settings-title">Settings</h2>
+          <h2 class="settings-title" id="settings-dialog-title">Settings</h2>
           <button
             type="button"
             class="settings-close"
@@ -64,6 +64,7 @@ import { HttpClient } from '@angular/common/http';
           }
 
           <button
+            type="button"
             class="settings-submit"
             [disabled]="saving() || success() || !apiKey().trim()"
             (click)="save()"
@@ -307,12 +308,25 @@ export class SettingsDialog {
   @Output() closed = new EventEmitter<void>();
 
   private http = inject(HttpClient);
+  private destroyRef = inject(DestroyRef);
+  private closeTimerId: ReturnType<typeof setTimeout> | null = null;
 
   apiKey = signal('');
   showKey = signal(false);
   saving = signal(false);
   success = signal(false);
   error = signal('');
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.closeTimerId) clearTimeout(this.closeTimerId);
+    });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    this.close();
+  }
 
   onBackdropClick(event: MouseEvent): void {
     if ((event.target as HTMLElement).classList.contains('settings-backdrop')) {
@@ -321,6 +335,10 @@ export class SettingsDialog {
   }
 
   close(): void {
+    if (this.closeTimerId) {
+      clearTimeout(this.closeTimerId);
+      this.closeTimerId = null;
+    }
     this.closed.emit();
   }
 
@@ -335,7 +353,7 @@ export class SettingsDialog {
       next: () => {
         this.saving.set(false);
         this.success.set(true);
-        setTimeout(() => this.closed.emit(), 1500);
+        this.closeTimerId = setTimeout(() => this.closed.emit(), 1500);
       },
       error: (err) => {
         this.saving.set(false);

@@ -47,6 +47,12 @@
     opacity: 1;
     background: rgba(255, 255, 255, 0.15);
   }
+
+  &:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+    opacity: 1;
+  }
 }
 
 .header-settings-icon {
