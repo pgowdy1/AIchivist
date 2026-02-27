@@ -1,67 +1,88 @@
 ---
 name: new-feature
-description: "Orchestrate full feature implementation with parallel agents"
+description: "Solo implementation of a small, straightforward feature — no agent team needed"
 disable-model-invocation: true
-argument-hint: <feature-description>
+argument-hint: "[plan-path]"
 ---
 
-# New Feature Orchestration
+# New Feature (Solo)
 
-You are the lead orchestrator for implementing a new feature. Follow these steps precisely.
+You are implementing a small, well-defined feature by yourself. This skill is for simple changes that don't warrant a multi-agent team. For complex features, use `/build-with-agent-team` instead.
 
-## Phase 1: Plan
+## When to Use This
 
-1. Read and understand the feature description: $ARGUMENTS
-2. Analyze the existing codebase to understand current patterns and relevant files
-3. Create a detailed implementation plan with clearly separable work streams
-4. Identify which parts can be parallelized (e.g., backend API, frontend UI, tests)
+- Single component or endpoint changes
+- Small UI tweaks or additions
+- Adding a simple API endpoint with frontend integration
+- Bug fixes that touch a few files
+- Features where the plan's "Recommended execution" says `/new-feature`
 
-## Phase 2: Branch & Worktree Setup
+## Step 1: Read the Plan
 
-Create an isolated worktree for this feature:
-```bash
-# Create feature branch and worktree
-FEATURE_BRANCH="feature/$ARGUMENTS_SLUG"
-git worktree add .worktrees/$ARGUMENTS_SLUG -b $FEATURE_BRANCH main
-
-# Initialize the worktree environment
-cd .worktrees/$ARGUMENTS_SLUG
-# Run project setup (npm install, dotnet restore, etc.)
+If a plan path is provided (`$ARGUMENTS`):
+```
+Read the plan file at $ARGUMENTS
 ```
 
-## Phase 3: Delegate to Subagents
-
-Spawn background subagents for each parallel work stream. Each subagent works in the same worktree but on different files.
-
-For each work stream, use the Task tool with `run_in_background: true`:
-
-**Backend Agent**: "Implement the backend API changes for [feature]. Follow all rules in .claude/rules/backend.md. Only modify files in src/Api/ and tests/Api.Tests/. When complete, run `dotnet test` and write a summary to .agent-status/backend.json"
-
-**Frontend Agent**: "Implement the Angular frontend for [feature]. Follow all rules in .claude/rules/frontend.md. Only modify files in src/Web/. When complete, run `npm run test` and write a summary to .agent-status/frontend.json"
-
-**Test Agent**: "Write comprehensive integration tests for [feature]. Follow all rules in .claude/rules/testing.md. Focus on end-to-end test scenarios. When complete, write a summary to .agent-status/tests.json"
-
-## Phase 4: Monitor & Integrate
-
-1. Wait for all agents to complete (check .agent-status/*.json files)
-2. Review the combined changes for consistency
-3. Run the full test suite: `dotnet test && cd src/Web && npm run test`
-4. Fix any integration issues between the work streams
-5. Commit all changes with a descriptive message
-
-## Phase 5: Create PR
-
-Once all tests pass:
+If no plan path, check for the most recent plan:
 ```bash
-git add -A
-git commit -m "[FEATURE] $ARGUMENTS"
-gh pr create --title "[FEATURE] $ARGUMENTS" --body "$(cat PR_BODY.md)" --base main
+ls -t .claude/plans/*.md | head -1
 ```
 
-Write the PR body (PR_BODY.md) including:
-- Summary of changes
-- Files modified per work stream
-- Test coverage added
-- Any open questions or known limitations
+Read and understand:
+- What are we building?
+- Which files to modify or create?
+- What's the API contract (if any)?
+- What are the edge cases?
 
-Then invoke `/review-pr` as a subagent to get an automated review before requesting human review.
+If no plan exists, ask the user what to build or suggest running `/plan-feature` first.
+
+## Step 2: Implement
+
+Work through the plan's implementation steps in order. Follow these rules:
+
+- **Read before editing** — always read a file before modifying it
+- **One concern at a time** — don't mix unrelated changes
+- **Follow conventions** — check CLAUDE.md and `.claude/rules/` for patterns
+- **Backend first** — if full-stack, implement the API before the frontend
+- **Test as you go** — run relevant tests after each significant change
+
+### Backend changes
+- Use the correct Anthropic SDK types (see CLAUDE.md)
+- Services go in `backend/ArchiveSearch.API/Services/`
+- Models go in `backend/ArchiveSearch.Core/Models/`
+- Use `AsNoTracking()` for read-only queries
+
+### Frontend changes
+- Use signals (`signal()`, `computed()`), not RxJS subjects for state
+- Use `@if`, `@for`, `@switch` — not `*ngIf`, `*ngFor`
+- Standalone components only
+- SCSS with BEM conventions
+
+## Step 3: Test
+
+Run the test suite:
+
+```bash
+dotnet test backend/ --verbosity normal
+```
+
+```bash
+cd frontend && npm test -- --run 2>&1; cd ..
+```
+
+If tests fail, fix them before proceeding.
+
+## Step 4: Summary
+
+Output what was done:
+
+```
+Done: <feature summary>
+
+Files changed:
+- path/to/file — what changed
+
+Tests: all passing
+Next step: /review-pr or /commit-pr <title>
+```

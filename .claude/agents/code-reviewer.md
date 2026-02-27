@@ -1,7 +1,6 @@
 ---
 name: code-reviewer
 description: Code review specialist. Use before merging branches to review changes for bugs, security issues, performance problems, and code quality.
-tools: Read, Glob, Grep, Bash
 model: opus
 color: yellow
 ---
