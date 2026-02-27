@@ -6,6 +6,9 @@ Slash-command skills for building features in AIchivist. Each skill handles one 
 
 ```
 /fresh-start  →  /plan-feature  →  /new-feature or /build-with-agent-team  →  /test  →  /review-pr  →  /commit-pr  →  /wrap-up
+
+Quick bug fix path:
+/fresh-start  →  /fix  →  /test  →  /commit-pr  →  /wrap-up
 ```
 
 ### Step 0: `/fresh-start <feature description>`
@@ -117,6 +120,24 @@ End-of-session checklist. Run when you're done for the day.
 /wrap-up
 ```
 
+## Bug Fix
+
+### `/fix <bug description>`
+
+Streamlined bug fix workflow — investigate, fix, verify. No plan file needed.
+
+- Spawns a **debugger** agent to investigate the bug and find root cause
+- Based on findings, either fixes directly or delegates to specialist agents (backend-dev, frontend-dev)
+- Runs tests to verify the fix
+- For simple single-layer bugs, the lead fixes directly (no agent overhead)
+- For multi-layer bugs, spawns 1-2 agents in parallel (no contract ceremony)
+
+```
+/fix search results not showing collection dates
+→ Debugger investigates → finds missing date field in API response
+→ Lead fixes backend model → runs tests → done
+```
+
 ## Utility Skills
 
 These can be used anytime, outside the main pipeline.
@@ -175,11 +196,12 @@ For a complex feature:
 /wrap-up
 ```
 
-For a quick fix that doesn't need planning:
+For a bug fix:
 
 ```
 /fresh-start fix search bar placeholder text
-  ... make the change directly ...
+/fix search bar placeholder text shows wrong examples
 /test
 /commit-pr "Fix search bar placeholder text"
+/wrap-up
 ```

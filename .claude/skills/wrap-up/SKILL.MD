@@ -5,7 +5,7 @@ description: Use when user says "wrap up", "close session", "end session", "wrap
 
 # Session Wrap-Up
 
-Run four phases in order. Each phase is conversational and inline — no
+Run three phases in order. Each phase is conversational and inline — no
 separate documents. All phases auto-apply without asking; present a
 consolidated report at the end.
 
@@ -69,8 +69,7 @@ Note anything important in the appropriate location.
 ## Phase 3: Review & Apply
 
 Analyze the conversation for self-improvement findings. If the session was
-short or routine with nothing notable, say "Nothing to improve" and proceed
-to Phase 4.
+short or routine with nothing notable, say "Nothing to improve".
 
 **Auto-apply all actionable findings immediately** — do not ask for approval
 on each one. Apply the changes, commit them, then present a summary of what
