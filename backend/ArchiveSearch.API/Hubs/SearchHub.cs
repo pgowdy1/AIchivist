@@ -10,9 +10,16 @@ public class SearchHub(SearchService searchService, ILogger<SearchHub> logger) :
     {
         var caller = Clients.Caller;
 
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            await caller.SendAsync("SearchFailed", new { error = "Query cannot be empty", failedStep = "expanding_query" });
+            return;
+        }
+
         var progress = new Progress<SearchProgress>(async p =>
         {
-            await caller.SendAsync("SearchProgress", p);
+            try { await caller.SendAsync("SearchProgress", p); }
+            catch (Exception ex) { logger.LogDebug(ex, "Failed to send progress (client may have disconnected)"); }
         });
 
         try

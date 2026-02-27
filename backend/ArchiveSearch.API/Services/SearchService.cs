@@ -20,7 +20,7 @@ public class SearchService(
     SearchCache cache,
     ILogger<SearchService> logger)
 {
-    public async Task<SearchResponse> SearchAsync(string query, IProgress<SearchProgress>? progress = null)
+    public virtual async Task<SearchResponse> SearchAsync(string query, IProgress<SearchProgress>? progress = null)
     {
         var contextId = SearchCache.ComputeContextId(query);
 
@@ -39,7 +39,7 @@ public class SearchService(
         int? dateEnd = null;
         try
         {
-            progress?.Report(new SearchProgress { Step = "expanding_query", Status = "active", Message = "Generating search phrases..." });
+            progress?.Report(new SearchProgress("expanding_query", "active", "Generating search phrases..."));
             logger.LogInformation("Pass 0 (Expand): Generating search phrases for: {Query}", query);
             var expansion = await claude.ExpandQueryAsync(query);
             searchQueries = new List<string>(expansion.Phrases.Count + 1) { query };
@@ -53,23 +53,23 @@ public class SearchService(
                 logger.LogInformation(
                     "Pass 0 (Expand): Detected temporal range {Start}-{End}",
                     dateStart.Value, dateEnd.Value);
-            progress?.Report(new SearchProgress { Step = "expanding_query", Status = "completed", Message = $"Generated {expansion.Phrases.Count} search phrases" });
+            progress?.Report(new SearchProgress("expanding_query", "completed", $"Generated {expansion.Phrases.Count} search phrases"));
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Pass 0 (Expand) failed, falling back to original query only");
-            progress?.Report(new SearchProgress { Step = "expanding_query", Status = "failed", Message = "Using original query only" });
+            progress?.Report(new SearchProgress("expanding_query", "failed", "Using original query only"));
             searchQueries = [query];
         }
 
         // ── Pass 1: Multi-Query FTS (SQLite FTS5) ──────────────────────────
-        progress?.Report(new SearchProgress { Step = "searching_database", Status = "active", Message = "Searching archival collections..." });
+        progress?.Report(new SearchProgress("searching_database", "active", "Searching archival collections..."));
         logger.LogInformation("Pass 1 (FTS): Running {Count} search queries", searchQueries.Count);
         var candidates = await repository.MultiQuerySearchAsync(
             searchQueries, perQueryLimit: 15, totalLimit: 50,
             dateStart: dateStart, dateEnd: dateEnd);
         logger.LogInformation("Pass 1 (FTS) returned {Count} unique candidates", candidates.Count);
-        progress?.Report(new SearchProgress { Step = "searching_database", Status = "completed", Message = $"Found {candidates.Count} matching collections" });
+        progress?.Report(new SearchProgress("searching_database", "completed", $"Found {candidates.Count} matching collections"));
 
         if (candidates.Count == 0)
         {
@@ -81,7 +81,7 @@ public class SearchService(
         List<CollectionResult> additionalResults;
         try
         {
-            progress?.Report(new SearchProgress { Step = "ranking_results", Status = "active", Message = "AI is ranking results..." });
+            progress?.Report(new SearchProgress("ranking_results", "active", "AI is ranking results..."));
             logger.LogInformation("Pass 2 (Claude): Ranking {Count} candidates", candidates.Count);
             var ranked = await claude.RankCandidatesAsync(candidates, query);
 
@@ -111,13 +111,13 @@ public class SearchService(
             logger.LogInformation(
                 "Pass 2 returned {RankedCount} ranked + {AdditionalCount} additional results",
                 results.Count, additionalResults.Count);
-            progress?.Report(new SearchProgress { Step = "ranking_results", Status = "completed", Message = $"Ranked top {results.Count} results" });
+            progress?.Report(new SearchProgress("ranking_results", "completed", $"Ranked top {results.Count} results"));
         }
         catch (Exception ex)
         {
             // Fallback: Claude unavailable (rate limit, network error, etc.)
             logger.LogWarning(ex, "Pass 2 (Claude) failed, falling back to FTS-only results");
-            progress?.Report(new SearchProgress { Step = "ranking_results", Status = "failed", Message = "Using keyword relevance order" });
+            progress?.Report(new SearchProgress("ranking_results", "failed", "Using keyword relevance order"));
 
             results = candidates
                 .Take(10)

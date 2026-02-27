@@ -1,7 +1,7 @@
 import { Component, computed, input } from '@angular/core';
 import { SearchProgressStep, STEP_LABELS } from '../../models/search-progress.models';
 
-const ALL_STEPS = ['expanding_query', 'searching_database', 'ranking_results'];
+const ALL_STEPS = ['expanding_query', 'searching_database', 'ranking_results'] as const;
 
 @Component({
   selector: 'app-search-progress',

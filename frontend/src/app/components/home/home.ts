@@ -33,15 +33,13 @@ export class Home {
   ) {
     effect(() => {
       const result = this.hubService.searchResult();
-      if (result && this.usingSignalR) {
+      const err = this.hubService.searchError();
+      if (!this.usingSignalR) return;
+
+      if (result) {
         this.searchResponse.set(result);
         this.loading.set(false);
-      }
-    });
-
-    effect(() => {
-      const err = this.hubService.searchError();
-      if (err && this.usingSignalR) {
+      } else if (err) {
         this.error.set(err);
         this.loading.set(false);
       }

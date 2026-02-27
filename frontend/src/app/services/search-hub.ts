@@ -22,16 +22,21 @@ export class SearchHubService {
     this.searchError.set(null);
 
     try {
-      if (!this.connection) {
-        this.connection = new HubConnectionBuilder()
-          .withUrl('/hubs/search')
-          .withAutomaticReconnect()
-          .build();
-      }
+      await this.ensureConnection();
+      await this.connection!.invoke('StartSearch', query);
+      return true;
+    } catch {
+      this.connected.set(false);
+      return false;
+    }
+  }
 
-      this.connection.off('SearchProgress');
-      this.connection.off('SearchCompleted');
-      this.connection.off('SearchFailed');
+  private async ensureConnection(): Promise<void> {
+    if (!this.connection) {
+      this.connection = new HubConnectionBuilder()
+        .withUrl('/hubs/search')
+        .withAutomaticReconnect()
+        .build();
 
       this.connection.on('SearchProgress', (step: SearchProgressStep) => {
         this.progress.update(steps => {
@@ -52,18 +57,13 @@ export class SearchHubService {
       this.connection.on('SearchFailed', (error: { error: string; failedStep: string }) => {
         this.searchError.set(error.error);
       });
-
-      if (this.connection.state === HubConnectionState.Disconnected) {
-        await this.connection.start();
-      }
-
-      this.connected.set(true);
-      await this.connection.invoke('StartSearch', query);
-      return true;
-    } catch {
-      this.connected.set(false);
-      return false;
     }
+
+    if (this.connection.state === HubConnectionState.Disconnected) {
+      await this.connection.start();
+    }
+
+    this.connected.set(true);
   }
 
   disconnect(): void {
