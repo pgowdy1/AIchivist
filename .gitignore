@@ -48,6 +48,10 @@ installer/
 # EAD XML source collections (large, not committed)
 collections/
 
+# E2E test artifacts (Playwright MCP screenshots & logs)
+/*.png
+.playwright-mcp/
+
 # OS
 .DS_Store
 Thumbs.db
