@@ -56,11 +56,13 @@ Services live in `API/Services/` (not Core) to avoid circular dependency with Da
 src/app/
 ├── components/
 │   ├── search-bar/        # Search input with example queries
+│   ├── search-progress/   # Step-by-step search pipeline progress indicator
 │   ├── results-panel/     # Search results display
 │   │   └── result-card/   # Individual result card
 │   └── chat-sidebar/      # Multi-turn chat about results
 ├── services/
 │   ├── search.ts          # POST /api/search
+│   ├── search-hub.ts      # SignalR client for real-time search progress
 │   └── chat.ts            # POST /api/chat
 └── models/                # TypeScript interfaces
 ```
@@ -85,6 +87,7 @@ Results are cached 1 hour by SHA256(query).
 | `/api/chat` | POST | Follow-up chat about search results |
 | `/api/admin/index` | POST | Batch index EAD XML files |
 | `/api/health` | GET | Health check |
+| `/hubs/search` | SignalR | Real-time search progress (expanding → searching → ranking) |
 
 ## Key Configuration
 
