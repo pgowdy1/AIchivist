@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Anthropic;
+using ArchiveSearch.API.Hubs;
 using ArchiveSearch.API.Services;
 using ArchiveSearch.Core.Cache;
 using ArchiveSearch.Data;
@@ -76,6 +77,7 @@ if (!builder.Environment.IsDevelopment()
 
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
+builder.Services.AddSignalR();
 
 // SQLite via EF Core
 builder.Services.AddDbContext<ArchiveContext>(options =>
@@ -106,7 +108,8 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
         policy.WithOrigins(frontendOrigin)
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -139,6 +142,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<SearchHub>("/hubs/search");
 app.MapFallbackToFile("index.html");
 
 // ── Startup: apply migrations ─────────────────────────────────────────────

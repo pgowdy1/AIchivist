@@ -112,38 +112,3 @@ No action needed:
 
 4. Knowledge: Discovered X works this way
    Already documented in CLAUDE.md
-
-## Phase 4: Publish It
-
-After all other phases are complete, review the full conversation for material
-that could be published. Look for:
-
-- Interesting technical solutions or debugging stories
-- Community-relevant announcements or updates
-- Educational content (how-tos, tips, lessons learned)
-- Project milestones or feature launches
-
-**If publishable material exists:**
-
-Draft the article(s) for the appropriate platform and save to a drafts folder.
-Present suggestions with the draft:
-
-All wrap-up steps complete. I also found potential content to publish:
-
-1. "Title of Post" — 1-2 sentence description of the content angle.
-   Platform: Reddit
-   Draft saved to: Drafts/Title-Of-Post/Reddit.md
-
-Wait for the user to respond. If they approve, post or prepare per platform.
-If they decline, the drafts remain for later.
-
-**If no publishable material exists:**
-
-Say "Nothing worth publishing from this session" and you're done.
-
-**Scheduling considerations:**
-- If the session produced multiple publishable items, do not post them all
-  at once
-- Space posts at least a few hours apart per platform
-- If multiple posts are needed, post the most time-sensitive one now and
-  present a schedule for the rest

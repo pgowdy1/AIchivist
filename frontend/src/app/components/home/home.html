@@ -30,6 +30,12 @@
       <app-search-bar [loading]="loading()" (searchTriggered)="onSearch($event)" />
     </div>
 
+    @if (loading() && searchProgress().length > 0) {
+      <div class="progress-section">
+        <app-search-progress [steps]="searchProgress()" />
+      </div>
+    }
+
     @if (error()) {
       <div class="error-banner">{{ error() }}</div>
     }
