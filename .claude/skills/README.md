@@ -112,7 +112,6 @@ End-of-session checklist. Run when you're done for the day.
 - **Ship** — commits and pushes any remaining changes
 - **Remember** — saves learnings to the right memory location (CLAUDE.md, auto-memory, rules)
 - **Review** — identifies skill gaps and friction from the session, auto-applies improvements
-- **Publish** — drafts any publishable content from the session
 
 ```
 /wrap-up
