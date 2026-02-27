@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using Anthropic;
 using ArchiveSearch.API.Hubs;
+using ArchiveSearch.API.Models;
 using ArchiveSearch.API.Services;
 using ArchiveSearch.Core.Cache;
 using ArchiveSearch.Data;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Production: port check + URL binding ─────────────────────────────────
+// Production: port check + URL binding
 if (!builder.Environment.IsDevelopment())
 {
     // Check if port 5265 is available before trying to bind
@@ -32,7 +33,7 @@ if (!builder.Environment.IsDevelopment())
     builder.WebHost.UseUrls("http://localhost:5265");
 }
 
-// ── File logging (production) ────────────────────────────────────────────
+// File logging (production)
 if (!builder.Environment.IsDevelopment())
 {
     var logDir = Path.Combine(
@@ -46,7 +47,7 @@ if (!builder.Environment.IsDevelopment())
     });
 }
 
-// ── Configuration ──────────────────────────────────────────────────────────
+// Configuration
 
 // Load optional local config (desktop installs store API key + connection string here)
 var appDataDir = Path.Combine(
@@ -73,7 +74,7 @@ if (!builder.Environment.IsDevelopment()
     connectionString = $"Data Source={dbPath}";
 }
 
-// ── Services ───────────────────────────────────────────────────────────────
+// Services
 
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
@@ -114,7 +115,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// ── Middleware ─────────────────────────────────────────────────────────────
+// Middleware
 
 app.UseCors();
 
@@ -145,7 +146,7 @@ app.MapControllers();
 app.MapHub<SearchHub>("/hubs/search");
 app.MapFallbackToFile("index.html");
 
-// ── Startup: apply migrations ─────────────────────────────────────────────
+// Startup: apply migrations
 
 using (var scope = app.Services.CreateScope())
 {
@@ -173,7 +174,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// ── Open browser when server is ready (production only) ──────────────────
+// Open browser when server is ready (production only)
 
 if (!app.Environment.IsDevelopment())
 {
@@ -188,16 +189,6 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.Run();
-
-// ── Supporting types ─────────────────────────────────────────────────────
-
-/// <summary>Tracks whether the app is in first-run setup mode (no API key configured).</summary>
-public class SetupState(bool isSetupMode, string localSettingsPath)
-{
-    private volatile bool _isSetupMode = isSetupMode;
-    public bool IsSetupMode { get => _isSetupMode; set => _isSetupMode = value; }
-    public string LocalSettingsPath { get; } = localSettingsPath;
-}
 
 // Enables WebApplicationFactory<Program> discovery for integration tests
 public partial class Program { }

@@ -1,0 +1,91 @@
+.stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 300px;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid var(--color-border, #ddd);
+  background: white;
+  transition: all 0.3s ease;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.step--completed .step-icon {
+  background: var(--color-status-completed);
+  border-color: var(--color-status-completed);
+  color: white;
+}
+
+.step--active .step-icon {
+  background: var(--color-status-active);
+  border-color: var(--color-status-active);
+  color: white;
+}
+
+.step--failed .step-icon {
+  background: var(--color-status-failed);
+  border-color: var(--color-status-failed);
+  color: white;
+}
+
+.step--pending .step-icon {
+  background: white;
+  border-color: var(--color-border, #d1d5db);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border, #d1d5db);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.step-content {
+  display: flex;
+  flex-direction: column;
+  padding-top: 3px;
+}
+
+.step-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+}
+
+.step--pending .step-label {
+  color: var(--color-text-secondary, #9ca3af);
+}
+
+.step-message {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary, #6b7280);
+  margin-top: 2px;
+}

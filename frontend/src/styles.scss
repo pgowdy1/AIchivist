@@ -24,6 +24,11 @@
   --color-error: #c62828;
   --color-error-bg: #ffebee;
 
+  // Status
+  --color-status-completed: #16a34a;
+  --color-status-active: #2563eb;
+  --color-status-failed: #dc2626;
+
   // Radii
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -52,4 +57,8 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

@@ -14,7 +14,7 @@ export class ResultCard {
 
   private readonly searchService = inject(SearchService);
 
-  expanded = false;
+  expanded = signal(false);
 
   relatedCollections = signal<RelatedCollection[]>([]);
   loadingRelated = signal(false);
@@ -32,7 +32,7 @@ export class ResultCard {
   }
 
   toggleExpanded(): void {
-    this.expanded = !this.expanded;
+    this.expanded.update(v => !v);
   }
 
   loadRelated(): void {

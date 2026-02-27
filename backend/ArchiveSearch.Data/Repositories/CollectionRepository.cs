@@ -2,10 +2,11 @@ using System.Globalization;
 using ArchiveSearch.Core.Models;
 using ArchiveSearch.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ArchiveSearch.Data.Repositories;
 
-public class CollectionRepository(ArchiveContext context)
+public class CollectionRepository(ArchiveContext context, ILogger<CollectionRepository> logger)
 {
     /// <summary>
     /// Full-text search using SQLite FTS5 with weighted bm25 ranking.
@@ -85,9 +86,10 @@ public class CollectionRepository(ArchiveContext context)
                 // Infrastructure error (database unreachable, connection issue, etc.) — rethrow
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
-                // Individual sub-query failure (e.g., malformed FTS5 query from Claude phrase) — skip silently
+                // Individual sub-query failure (e.g., malformed FTS5 query from Claude phrase) — skip
+                logger.LogDebug(ex, "FTS5 sub-query failed for phrase: {Query}", query);
             }
         }
 
@@ -196,9 +198,10 @@ public class CollectionRepository(ArchiveContext context)
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
             // FTS5 query may fail if terms produce invalid syntax — return empty gracefully
+            logger.LogDebug(ex, "FTS5 related-collections query failed for unit: {UnitId}", unitId);
             return [];
         }
 

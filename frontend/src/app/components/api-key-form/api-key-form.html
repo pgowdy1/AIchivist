@@ -1,0 +1,53 @@
+<a
+  class="akf-link"
+  href="https://console.anthropic.com/settings/keys"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Get an API key from Anthropic &rarr;
+</a>
+
+<label class="akf-label" for="akfApiKeyInput">API Key</label>
+<div class="akf-input-wrapper">
+  <input
+    #keyInput
+    id="akfApiKeyInput"
+    class="akf-input"
+    [type]="showKey() ? 'text' : 'password'"
+    [value]="apiKey()"
+    (input)="apiKey.set(keyInput.value)"
+    placeholder="sk-ant-..."
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <button
+    type="button"
+    class="akf-toggle"
+    (click)="showKey.set(!showKey())"
+    [attr.aria-label]="showKey() ? 'Hide API key' : 'Show API key'"
+  >
+    {{ showKey() ? 'Hide' : 'Show' }}
+  </button>
+</div>
+
+@if (error()) {
+  <p class="akf-error">{{ error() }}</p>
+}
+
+@if (success()) {
+  <p class="akf-success">{{ successMessage() }}</p>
+}
+
+<button
+  type="button"
+  class="akf-submit"
+  [disabled]="saving() || success() || !apiKey().trim()"
+  (click)="save()"
+>
+  @if (saving()) {
+    <span class="akf-spinner"></span>
+    Saving...
+  } @else {
+    {{ submitLabel() }}
+  }
+</button>
