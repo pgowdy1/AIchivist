@@ -34,7 +34,7 @@ If **either** returns a non-200 status or fails to connect, **start them automat
 
 1. Use `browser_navigate` to open `http://localhost:4200`
 2. Use `browser_snapshot` to capture the initial page state
-3. Use `browser_take_screenshot` — label it "initial load"
+3. Use `browser_take_screenshot` with `filename: "screenshots/initial-load.png"` — label it "initial load"
 4. Determine which page loaded:
    - If the snapshot contains "Welcome to AIchivist" or an API key input → **Setup page** (run Flow 1)
    - If the snapshot contains "Search archive collections" → **Home page** (skip Flow 1)
@@ -65,7 +65,7 @@ Flow 7: Example Queries  — PENDING
 5. `browser_snapshot` — verify: input type changed to text (key is visible)
 6. `browser_click` the "Save & Continue" button
 7. Wait for navigation — `browser_snapshot` until the home page appears (search bar visible)
-8. `browser_take_screenshot` — label "setup complete"
+8. `browser_take_screenshot` with `filename: "screenshots/setup-complete.png"` — label "setup complete"
 
 **Pass criteria:** Redirected to home page with search bar visible.
 **Note:** This requires a REAL API key. If using a fake key, the backend will reject it. Mark as **BLOCKED** and continue.
@@ -86,7 +86,7 @@ Flow 7: Example Queries  — PENDING
    - "Expanding query" → "Searching database" → "Ranking results"
    - Continue polling until results appear or 60 seconds elapse
 8. `browser_snapshot` — verify: results panel visible with text matching `Found X collections for "..."`
-9. `browser_take_screenshot` — label "search results"
+9. `browser_take_screenshot` with `filename: "screenshots/search-results.png"` — label "search results"
 10. Verify in the snapshot: at least 1 result card with a title, relevance score (e.g., `X/10`), and relevance explanation text
 
 **Pass criteria:** Search completed, results panel visible with at least 1 ranked result card.
@@ -106,7 +106,7 @@ Flow 7: Example Queries  — PENDING
 6. `browser_snapshot` — wait for loading to complete. Verify either:
    - Related collection cards appeared (with titles and overlap summaries), OR
    - Text "No strongly related collections found."
-7. `browser_take_screenshot` — label "expanded card with related"
+7. `browser_take_screenshot` with `filename: "screenshots/expanded-card-with-related.png"` — label "expanded card with related"
 8. `browser_click` "Show less" (the same `.expand-button`, now showing "Show less")
 9. `browser_snapshot` — verify card collapsed (expanded content no longer visible)
 
@@ -147,12 +147,12 @@ Flow 7: Example Queries  — PENDING
    - An assistant message appearing after the user message
    - Continue polling until assistant response appears or 60 seconds elapse
 8. `browser_snapshot` — verify: assistant response message visible in the thread
-9. `browser_take_screenshot` — label "chat single turn"
+9. `browser_take_screenshot` with `filename: "screenshots/chat-single-turn.png"` — label "chat single turn"
 10. Send a follow-up: `browser_click` the textarea, `browser_type`: `Are any of those collections digitized?`
 11. `browser_click` Send
 12. Poll for response (same as step 7)
 13. `browser_snapshot` — verify: 4 messages total (2 user, 2 assistant) in the thread
-14. `browser_take_screenshot` — label "chat multi-turn"
+14. `browser_take_screenshot` with `filename: "screenshots/chat-multi-turn.png"` — label "chat multi-turn"
 
 **Pass criteria:** Single-turn and multi-turn chat working, messages display correctly.
 
@@ -172,7 +172,7 @@ Flow 7: Example Queries  — PENDING
 4. `browser_snapshot` — verify: "Save API Key" button is now enabled
 5. `browser_click` the close button (CSS: `.settings-close`) — close WITHOUT saving
 6. `browser_snapshot` — verify: dialog closed, home page visible with search results still intact
-7. `browser_take_screenshot` — label "settings closed"
+7. `browser_take_screenshot` with `filename: "screenshots/settings-closed.png"` — label "settings closed"
 
 **Pass criteria:** Settings dialog opens with correct elements, closes without side effects.
 
@@ -187,7 +187,7 @@ Flow 7: Example Queries  — PENDING
 4. `browser_snapshot` — verify: search input now contains the example query text
 5. **Poll for results:** Same as Flow 2 step 7 — wait for search to complete
 6. `browser_snapshot` — verify: new results appeared (different from the first search)
-7. `browser_take_screenshot` — label "example query results"
+7. `browser_take_screenshot` with `filename: "screenshots/example-query-results.png"` — label "example query results"
 
 **Pass criteria:** Example query chip populated the search input and triggered a new search with results.
 

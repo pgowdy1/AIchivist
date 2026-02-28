@@ -32,7 +32,7 @@ public class SearchHubTests
         var dbOptions = new DbContextOptionsBuilder<ArchiveContext>()
             .UseInMemoryDatabase("SearchHubTests-" + Guid.NewGuid())
             .Options;
-        var repository = new CollectionRepository(new ArchiveContext(dbOptions));
+        var repository = new CollectionRepository(new ArchiveContext(dbOptions), NullLogger<CollectionRepository>.Instance);
         var searchCache = new SearchCache(new MemoryCache(new MemoryCacheOptions()));
 
         _searchService = Substitute.ForPartsOf<SearchService>(

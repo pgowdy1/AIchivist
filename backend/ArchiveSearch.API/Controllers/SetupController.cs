@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic;
 using Anthropic.Models.Messages;
+using ArchiveSearch.API.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ArchiveSearch.API.Controllers;

@@ -49,11 +49,11 @@
 
   @if (result.abstract || result.scopeContent || result.biogHist || result.seriesTitles.length > 0 || result.persnames.length > 0) {
     <button class="expand-button" type="button" (click)="toggleExpanded()">
-      {{ expanded ? 'Show less' : 'Show more details' }}
-      <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
+      {{ expanded() ? 'Show less' : 'Show more details' }}
+      <span class="expand-icon">{{ expanded() ? '▲' : '▼' }}</span>
     </button>
 
-    @if (expanded) {
+    @if (expanded()) {
       <div class="expanded-content">
         @if (result.abstract) {
           <div class="detail-section">

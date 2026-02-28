@@ -29,9 +29,9 @@ The installer bundles:
 | File | Purpose |
 |---|---|
 | `installer/AIchivist.iss` | Inno Setup script |
-| `build-installer.ps1` | Build pipeline: frontend → tests → publish → wwwroot → Inno compile |
+| `installer/build-installer.ps1` | Build pipeline: frontend → tests → publish → wwwroot → Inno compile |
 
-### Build Pipeline (`build-installer.ps1`)
+### Build Pipeline (`installer/build-installer.ps1`)
 
 1. Frontend: `npm ci && npm run build`
 2. Tests: `dotnet test`

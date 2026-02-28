@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Backend
 ```bash
-dotnet build backend/ArchiveSearch.sln          # Build
+dotnet build backend/ArchiveSearch.slnx          # Build
 dotnet run --project backend/ArchiveSearch.API   # Run (auto-applies EF migrations)
 dotnet test backend/                             # Test
 ```
@@ -44,7 +44,7 @@ dotnet user-secrets set "ANTHROPIC_API_KEY" "sk-ant-..." --project backend/Archi
 
 ### Backend (3-project solution)
 
-- **ArchiveSearch.API** — Controllers, services (ClaudeService, SearchService, IndexingService), DI setup in Program.cs
+- **ArchiveSearch.API** — Controllers, services (ClaudeService, SearchService), DI setup in Program.cs
 - **ArchiveSearch.Core** — Models, SearchCache, EadParser (XML parsing for EAD finding aids)
 - **ArchiveSearch.Data** — EF Core DbContext (`ArchiveContext`), `CollectionRepository` (FTS queries), migrations
 
@@ -55,11 +55,14 @@ Services live in `API/Services/` (not Core) to avoid circular dependency with Da
 ```
 src/app/
 ├── components/
+│   ├── api-key-form/      # Shared API key input form (used by setup + settings)
 │   ├── search-bar/        # Search input with example queries
 │   ├── search-progress/   # Step-by-step search pipeline progress indicator
 │   ├── results-panel/     # Search results display
 │   │   └── result-card/   # Individual result card
-│   └── chat-sidebar/      # Multi-turn chat about results
+│   ├── chat-sidebar/      # Multi-turn chat about results
+│   ├── settings-dialog/   # API key settings modal
+│   └── setup/             # First-run setup page
 ├── services/
 │   ├── search.ts          # POST /api/search
 │   ├── search-hub.ts      # SignalR client for real-time search progress
@@ -92,7 +95,7 @@ Results are cached 1 hour by SHA256(query).
 ## Key Configuration
 
 - Backend listens on the port shown in console output (check `Properties/launchSettings.json`)
-- Frontend API URL is hardcoded to `http://localhost:5265/api` in service files
+- Frontend API URL is relative `/api` (proxy-handled in development, static files in production)
 - CORS allows `http://localhost:4200` (configurable via `FrontendOrigin` in appsettings)
 - Connection string: env var `CONNECTION_STRING` → appsettings `ConnectionStrings:Default` → default `Data Source=archive.db`
 

@@ -31,9 +31,10 @@
 
     <div class="chat-input-area">
       <textarea
+        #chatInput
         class="chat-input"
         [value]="inputText()"
-        (input)="inputText.set($any($event.target).value)"
+        (input)="inputText.set(chatInput.value)"
         (keydown)="onKeyDown($event)"
         placeholder="Ask about these collections..."
         [disabled]="loading()"

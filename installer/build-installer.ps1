@@ -6,10 +6,10 @@
 #   - .NET 10 SDK
 #   - Inno Setup 6 (ISCC.exe on PATH or at default location)
 #
-# Usage: .\build-installer.ps1
+# Usage: .\installer\build-installer.ps1   (run from project root)
 
 $ErrorActionPreference = "Stop"
-$root = $PSScriptRoot
+$root = Split-Path $PSScriptRoot -Parent
 $frontendDir = Join-Path $root "frontend"
 $backendDir = Join-Path $root "backend"
 $apiProject = Join-Path $backendDir "ArchiveSearch.API"

@@ -20,6 +20,8 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
     private const string HaikuModel = "claude-haiku-4-5-20251001";
     private const string SonnetModel = "claude-sonnet-4-5-20250929";
 
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
     // ────────────────────────────────────────────────────────────────────────
     //  EXPAND: Generate alternative search phrases from user query
     // ────────────────────────────────────────────────────────────────────────
@@ -209,8 +211,7 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
         try
         {
             var cleaned = CleanJson(json);
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            return JsonSerializer.Deserialize<List<RankedResult>>(cleaned, options) ?? [];
+            return JsonSerializer.Deserialize<List<RankedResult>>(cleaned, JsonOptions) ?? [];
         }
         catch (Exception ex)
         {
@@ -224,8 +225,7 @@ public class ClaudeService(AnthropicClient client, ILogger<ClaudeService> logger
         try
         {
             var cleaned = CleanJson(json);
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var raw = JsonSerializer.Deserialize<ExpandedQueryResultRaw>(cleaned, options);
+            var raw = JsonSerializer.Deserialize<ExpandedQueryResultRaw>(cleaned, JsonOptions);
             var result = new QueryExpansionResult
             {
                 Phrases = raw?.Phrases ?? []

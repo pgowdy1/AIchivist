@@ -144,7 +144,7 @@ frontend/src/app/
 AIchivist can be packaged as a standalone Windows application with an embedded SQLite database -- no Docker, no terminal, no technical setup required.
 
 ```powershell
-.\build-installer.ps1    # Builds frontend → runs tests → publishes → compiles installer
+.\installer\build-installer.ps1    # Builds frontend → runs tests → publishes → compiles installer
 ```
 
 The installer bundles everything into a single `AIchivist-Setup.exe` that handles database initialization and configuration automatically. See [installer/](installer/) for details.

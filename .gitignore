@@ -23,7 +23,9 @@ dist/
 .idea/
 
 # Installer build artifacts (publish output, Inno Setup output)
-installer/
+installer/publish/
+installer/output/
+installer/data/
 
 # Certificates and private keys
 *.key
@@ -49,7 +51,7 @@ installer/
 collections/
 
 # E2E test artifacts (Playwright MCP screenshots & logs)
-/*.png
+screenshots/
 .playwright-mcp/
 
 # OS
