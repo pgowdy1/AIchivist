@@ -66,7 +66,7 @@
               <div class="submit-error">{{ submitError() }}</div>
             }
 
-            <form class="request-form" (ngSubmit)="submit()">
+            <form class="request-form" (submit)="$event.preventDefault(); submit()">
               <div class="form-field">
                 <label class="form-label" for="req-name">Name <span class="required">*</span></label>
                 <input
