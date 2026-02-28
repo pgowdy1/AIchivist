@@ -11,7 +11,7 @@ Run the full test suite across both backend and frontend, then report results cl
 ## Step 1: Backend Tests
 
 ```bash
-dotnet test backend/ --verbosity normal
+cmd.exe /c "cd /d C:\Users\pgowd\Documents\WSU_Archive_Search_Tool_New && dotnet test backend\ArchiveSearch.Tests --verbosity normal"
 ```
 
 Capture the output. Look for:
@@ -22,10 +22,10 @@ Capture the output. Look for:
 ## Step 2: Frontend Tests
 
 ```bash
-cd frontend && npm test -- --run 2>&1; cd ..
+cd /mnt/c/Users/pgowd/Documents/WSU_Archive_Search_Tool_New/frontend && npm test 2>&1
 ```
 
-The `--run` flag runs Vitest in single-run mode (no watch).
+`npm test` already runs in single-run mode (`ng test --no-watch`). Do NOT pass `--run` — it is not a valid Angular CLI flag.
 
 Capture the output. Look for:
 - Total tests run
