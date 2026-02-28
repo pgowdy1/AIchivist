@@ -1,207 +1,37 @@
 # Skills
 
-Slash-command skills for building features in AIchivist. Each skill handles one step of the development workflow — run them in order or pick the ones you need.
-
-## The Pipeline
+## Pipeline
 
 ```
-/fresh-start  →  /plan-feature  →  /new-feature or /build-with-agent-team  →  /test  →  /review-pr  →  /commit-pr  →  /wrap-up
-
-Quick bug fix path:
+/full-feature <desc>  — runs everything below automatically
+/fresh-start  →  /plan-feature  →  /new-feature or /build-with-agent-team  →  /test  →  /optimize  →  /test  →  /commit-pr  →  /review-pr  →  /wrap-up
 /fresh-start  →  /fix  →  /test  →  /commit-pr  →  /wrap-up
 ```
 
-### Step 0: `/fresh-start <feature description>`
+## Skills Reference
 
-Prepares a clean branch before any work begins.
+**`/full-feature <description>`** — End-to-end automated pipeline. Creates a branch, gathers requirements via Q&A, builds the feature, tests, optimizes, commits a PR, reviews it, and wraps up. The only user interaction is answering planning questions.
 
-- Checks `git status` — if dirty, stops and asks you what to do (stash, commit, or abort)
-- Pulls latest from `main`
-- Creates `feature/<slug>` branch from main
+**`/fresh-start <description>`** — Checks for a clean working tree (asks before stashing/committing), pulls latest main, and creates a `feature/<slug>` branch.
 
-```
-/fresh-start add collection export to CSV
-→ Creates branch: feature/add-collection-export-to-csv
-```
+**`/plan-feature <description>`** — Scans the codebase, asks 3 rounds of adaptive questions about layers/scope/UX/edge cases, then writes a structured plan to `.claude/plans/<slug>.md`. Recommends solo or team build based on complexity.
 
-### Step 1: `/plan-feature <feature description>`
+**`/new-feature [plan-path]`** — Solo implementation for small/medium features. Reads the plan, implements backend-first then frontend, and runs tests after each change.
 
-Interactive requirements gathering that produces a plan file.
+**`/build-with-agent-team [plan-path] [num-agents]`** — Multi-agent build for complex features spanning 3+ layers. Spawns agents in dependency order with a contract-first protocol — upstream agents publish API contracts before downstream agents build.
 
-- Scans the codebase for relevant files
-- Asks 3 rounds of adaptive questions (layers, scope, UX, edge cases)
-- Writes a structured plan to `.claude/plans/<slug>.md`
-- Recommends `/new-feature` (solo) or `/build-with-agent-team` (team) based on complexity
+**`/test`** — Runs backend (`dotnet test`) and frontend (`npm test`) test suites and reports pass/fail counts.
 
-```
-/plan-feature add collection export to CSV
-→ Saves plan to .claude/plans/add-collection-export-to-csv.md
-```
+**`/optimize [file-or-scope]`** — Simplifies changed files since branching from main. Flattens conditionals, removes dead code, enforces Angular/C# conventions. Reverts anything that breaks tests.
 
-### Step 2a: `/new-feature [plan-path]`
+**`/commit-pr <title>`** — Stages all changes, generates a conventional commit message, pushes to origin, and creates a PR with summary and grouped changes.
 
-Solo implementation for small, straightforward features.
+**`/review-pr [PR-number]`** — Reviews the PR diff for security, correctness, architecture, test coverage, and completeness. Posts findings as a PR comment with critical issues, suggestions, and what looks good.
 
-- Reads the plan (or the most recent plan if no path given)
-- Implements backend first, then frontend
-- Runs tests after each significant change
-- Use this when the plan says scope is **small** or **medium** with a single layer
+**`/fix <bug description>`** — Spawns a debugger agent to investigate, then fixes directly or delegates to specialist agents. Runs tests to verify. No plan file needed.
 
-```
-/new-feature .claude/plans/add-collection-export-to-csv.md
-```
+**`/e2e-test`** — Opens a Playwright browser and walks through all 7 UI flows (setup, search, results, chat, settings, example queries). Reports pass/fail per flow with screenshots.
 
-### Step 2b: `/build-with-agent-team [plan-path] [num-agents]`
+**`/prime`** — Reads key project files (CLAUDE.md, models, entities, controllers) to bootstrap codebase context before starting work.
 
-Multi-agent build for complex features spanning multiple layers.
-
-- Reads the plan and determines team structure
-- Spawns agents in dependency order (database → backend → frontend)
-- Enforces contract-first protocol — upstream agents publish API contracts before downstream agents build
-- Lead verifies and relays all contracts between agents
-- Runs end-to-end validation after all agents complete
-- Use this when the plan says scope is **large** or touches **3+ layers**
-
-```
-/build-with-agent-team .claude/plans/add-collection-export-to-csv.md 3
-```
-
-### Step 3: `/test`
-
-Runs the full test suite across both stacks.
-
-- Backend: `dotnet test backend/`
-- Frontend: `npm test --run` (Vitest single-run mode)
-- Reports pass/fail counts and failure details
-
-```
-/test
-→ Backend: 12 passed, 0 failed
-→ Frontend: 8 passed, 0 failed
-→ Overall: PASS
-```
-
-### Step 4: `/review-pr [PR-number]`
-
-Automated code review before merging.
-
-- Reviews the diff against main (or a specific PR number)
-- Checks: security, logic/correctness, architecture, test coverage, completeness
-- Categorizes findings as Critical (must fix), Suggestions (nice to have), and What Looks Good
-- Posts the review as a PR comment if a PR number is given
-
-```
-/review-pr        # reviews current branch diff
-/review-pr 42     # reviews PR #42
-```
-
-### Step 5: `/commit-pr <title>`
-
-Stages, commits, pushes, and creates a pull request.
-
-- Stages all changes
-- Generates a conventional commit message (`feat:`, `fix:`, `refactor:`, etc.)
-- Pushes to origin
-- Creates a PR with summary, grouped changes, and test notes
-
-```
-/commit-pr "Add CSV export for collections"
-```
-
-### Step 6: `/wrap-up`
-
-End-of-session checklist. Run when you're done for the day.
-
-- **Ship** — commits and pushes any remaining changes
-- **Remember** — saves learnings to the right memory location (CLAUDE.md, auto-memory, rules)
-- **Review** — identifies skill gaps and friction from the session, auto-applies improvements
-
-```
-/wrap-up
-```
-
-## Bug Fix
-
-### `/fix <bug description>`
-
-Streamlined bug fix workflow — investigate, fix, verify. No plan file needed.
-
-- Spawns a **debugger** agent to investigate the bug and find root cause
-- Based on findings, either fixes directly or delegates to specialist agents (backend-dev, frontend-dev)
-- Runs tests to verify the fix
-- For simple single-layer bugs, the lead fixes directly (no agent overhead)
-- For multi-layer bugs, spawns 1-2 agents in parallel (no contract ceremony)
-
-```
-/fix search results not showing collection dates
-→ Debugger investigates → finds missing date field in API response
-→ Lead fixes backend model → runs tests → done
-```
-
-## Utility Skills
-
-These can be used anytime, outside the main pipeline.
-
-### `/optimize [file-or-scope]`
-
-Simplifies code and enforces project conventions.
-
-- Pass a file path, component name, or "recent" (default: all changes since branching from main)
-- Flattens nested conditionals, removes dead code, enforces Angular/C# patterns
-- Runs tests after changes — reverts anything that breaks
-
-```
-/optimize frontend/src/app/components/search-bar/search-bar.ts
-/optimize recent
-/optimize         # defaults to all changed files
-```
-
-### `/prime`
-
-Bootstraps context by reading key project files. Useful at the start of a session when you need Claude to understand the codebase before doing anything.
-
-```
-/prime
-```
-
-## Typical Session
-
-A full feature session looks like this:
-
-```
-/fresh-start add related collections sidebar
-/plan-feature add related collections sidebar
-  ... answers questions ...
-/new-feature .claude/plans/add-related-collections-sidebar.md
-/test
-/optimize recent
-/test
-/review-pr
-/commit-pr "Add related collections sidebar"
-/wrap-up
-```
-
-For a complex feature:
-
-```
-/fresh-start redesign search results with faceted filtering
-/plan-feature redesign search results with faceted filtering
-  ... answers questions ...
-/build-with-agent-team .claude/plans/redesign-search-results-with-faceted-filtering.md
-/test
-/optimize recent
-/test
-/review-pr
-/commit-pr "Redesign search results with faceted filtering"
-/wrap-up
-```
-
-For a bug fix:
-
-```
-/fresh-start fix search bar placeholder text
-/fix search bar placeholder text shows wrong examples
-/test
-/commit-pr "Fix search bar placeholder text"
-/wrap-up
-```
+**`/wrap-up`** — End-of-session checklist: commits/pushes remaining changes, saves learnings to memory, and identifies skill gaps or friction to auto-improve.
