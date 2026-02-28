@@ -233,7 +233,11 @@ Generate a conventional commit message (`feat:`, `fix:`, `refactor:`, `test:`, `
 
 Write the commit message to a file and commit:
 ```bash
-echo "<type>: <description>" > .git/COMMIT_MSG
+cat > .git/COMMIT_MSG << 'EOF'
+<type>: <description>
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+EOF
 cmd.exe /c "cd /d C:\Users\pgowd\Documents\WSU_Archive_Search_Tool_New && git commit -F .git\COMMIT_MSG"
 rm .git/COMMIT_MSG
 ```
@@ -241,7 +245,7 @@ rm .git/COMMIT_MSG
 ### 7.4 Push
 
 ```bash
-git push -u origin HEAD
+cmd.exe /c "cd /d C:\Users\pgowd\Documents\WSU_Archive_Search_Tool_New && git push -u origin HEAD"
 ```
 
 ### 7.5 Create PR
@@ -272,7 +276,7 @@ rm .git/PR_BODY.md
 ### 8.1 Get the Diff
 
 ```bash
-cmd.exe /c "gh pr diff <pr-number>"
+powershell.exe -Command "gh pr diff <pr-number>"
 ```
 
 ### 8.2 Review Checklist
@@ -312,7 +316,7 @@ rm .git/REVIEW.md
 Verify everything is committed and pushed:
 ```bash
 git status
-git log origin/HEAD..HEAD
+git log @{upstream}..HEAD
 ```
 
 Push any remaining changes.
