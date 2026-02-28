@@ -55,11 +55,14 @@ Services live in `API/Services/` (not Core) to avoid circular dependency with Da
 ```
 src/app/
 ├── components/
+│   ├── api-key-form/      # Shared API key input form (used by setup + settings)
 │   ├── search-bar/        # Search input with example queries
 │   ├── search-progress/   # Step-by-step search pipeline progress indicator
 │   ├── results-panel/     # Search results display
 │   │   └── result-card/   # Individual result card
-│   └── chat-sidebar/      # Multi-turn chat about results
+│   ├── chat-sidebar/      # Multi-turn chat about results
+│   ├── settings-dialog/   # API key settings modal
+│   └── setup/             # First-run setup page
 ├── services/
 │   ├── search.ts          # POST /api/search
 │   ├── search-hub.ts      # SignalR client for real-time search progress
