@@ -1,6 +1,7 @@
 using System.Text;
 using ArchiveSearch.Core.Models;
 using MailKit.Net.Smtp;
+using MailKit.Security;
 using MimeKit;
 
 namespace ArchiveSearch.API.Services;
@@ -24,6 +25,9 @@ public class EmailService(IConfiguration configuration, ILogger<EmailService> lo
             var fromAddress = configuration["Email:FromAddress"] ?? "aichivist@wsu.edu";
             var archivistAddress = configuration["Email:ArchivistAddress"] ?? "archives@wsu.edu";
             var useSsl = configuration.GetValue("Email:UseSsl", true);
+            var socketOptions = useSsl && smtpPort == 587
+                ? SecureSocketOptions.StartTls
+                : useSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.None;
 
             var message = new MimeMessage();
             message.From.Add(MailboxAddress.Parse(fromAddress));
@@ -32,7 +36,7 @@ public class EmailService(IConfiguration configuration, ILogger<EmailService> lo
             message.Body = new TextPart("plain") { Text = BuildEmailBody(request) };
 
             using var client = new SmtpClient();
-            await client.ConnectAsync(smtpHost, smtpPort, useSsl);
+            await client.ConnectAsync(smtpHost, smtpPort, socketOptions);
 
             if (!string.IsNullOrWhiteSpace(smtpUsername))
                 await client.AuthenticateAsync(smtpUsername, smtpPassword);
