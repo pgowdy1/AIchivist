@@ -1,18 +1,20 @@
-import { Component, computed, effect, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { SearchBar } from '../search-bar/search-bar';
 import { ResultsPanel } from '../results-panel/results-panel';
 import { ChatSidebar } from '../chat-sidebar/chat-sidebar';
 import { SettingsDialog } from '../settings-dialog/settings-dialog';
 import { SearchProgress } from '../search-progress/search-progress';
+import { SavedDrawer } from '../saved-drawer/saved-drawer';
 import { SearchService } from '../../services/search';
 import { SearchHubService } from '../../services/search-hub';
+import { FavoritesService } from '../../services/favorites';
 import { SearchResponse } from '../../models/search.models';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-home',
-  imports: [SearchBar, ResultsPanel, ChatSidebar, SettingsDialog, SearchProgress],
+  imports: [SearchBar, ResultsPanel, ChatSidebar, SettingsDialog, SearchProgress, SavedDrawer],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -22,7 +24,11 @@ export class Home {
   searchResponse = signal<SearchResponse | null>(null);
   error = signal('');
   showSettings = signal(false);
+  showSavedDrawer = signal(false);
   searchProgress = computed(() => this.hubService.progress());
+
+  private readonly favoritesService = inject(FavoritesService);
+  savedCount = computed(() => this.favoritesService.count());
 
   private usingSignalR = false;
 

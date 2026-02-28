@@ -43,3 +43,25 @@ export interface RelatedCollection {
   sharedPlaces: string[];
   overlapSummary: string;
 }
+
+export interface SavedCollection {
+  collectionUnitId: string;
+  title: string;
+  repository: string | null;
+  dateRange: string | null;
+}
+
+export interface CollectionRequestPayload {
+  requesterName: string;
+  requesterEmail: string;
+  requesterPhone: string | null;
+  affiliation: string | null;
+  notes: string | null;
+  collections: SavedCollection[];
+}
+
+export interface CollectionRequestResponse {
+  success: boolean;
+  emailSent: boolean;
+  message: string | null;
+}
