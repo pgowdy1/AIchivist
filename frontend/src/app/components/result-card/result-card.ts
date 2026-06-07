@@ -1,6 +1,7 @@
-import { Component, inject, Input, signal } from '@angular/core';
+import { Component, computed, inject, Input, signal } from '@angular/core';
 import { CollectionResult, RelatedCollection } from '../../models/search.models';
 import { SearchService } from '../../services/search';
+import { FavoritesService } from '../../services/favorites';
 
 @Component({
   selector: 'app-result-card',
@@ -13,12 +14,15 @@ export class ResultCard {
   @Input() unranked = false;
 
   private readonly searchService = inject(SearchService);
+  private readonly favoritesService = inject(FavoritesService);
 
   expanded = signal(false);
 
   relatedCollections = signal<RelatedCollection[]>([]);
   loadingRelated = signal(false);
   relatedLoaded = signal(false);
+
+  isSaved = computed(() => this.favoritesService.isSaved(this.result.collectionUnitId));
 
   get scoreWidth(): string {
     return `${(this.result.relevanceScore / 10) * 100}%`;
@@ -29,6 +33,15 @@ export class ResultCard {
     if (score >= 8) return '#388e3c';
     if (score >= 5) return '#f57c00';
     return '#d32f2f';
+  }
+
+  toggleFavorite(): void {
+    this.favoritesService.toggle({
+      collectionUnitId: this.result.collectionUnitId,
+      title: this.result.title,
+      repository: this.result.repository,
+      dateRange: this.result.dateRange,
+    });
   }
 
   toggleExpanded(): void {

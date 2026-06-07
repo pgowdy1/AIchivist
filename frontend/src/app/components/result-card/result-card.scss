@@ -85,6 +85,38 @@
   color: var(--color-border);
 }
 
+.favorite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+
+  &:hover {
+    color: var(--color-primary);
+  }
+
+  &.saved {
+    color: var(--color-primary);
+
+    .favorite-icon {
+      animation: starPop 0.3s ease;
+    }
+  }
+}
+
+@keyframes starPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
 .relevance-score {
   display: flex;
   flex-direction: column;

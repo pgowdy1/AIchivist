@@ -101,6 +101,7 @@ builder.Services.AddSingleton<SearchCache>();
 builder.Services.AddScoped<IndexingService>();
 builder.Services.AddScoped<ClaudeService>();
 builder.Services.AddScoped<SearchService>();
+builder.Services.AddScoped<EmailService>();
 
 // CORS — allow Angular dev server and any configured frontend origin
 var frontendOrigin = builder.Configuration["FrontendOrigin"] ?? "http://localhost:4200";

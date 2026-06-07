@@ -9,6 +9,7 @@ namespace ArchiveSearch.Data;
 public class ArchiveContext(DbContextOptions<ArchiveContext> options) : DbContext(options)
 {
     public DbSet<CollectionEntity> Collections => Set<CollectionEntity>();
+    public DbSet<CollectionRequestEntity> CollectionRequests => Set<CollectionRequestEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

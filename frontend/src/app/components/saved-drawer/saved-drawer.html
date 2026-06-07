@@ -1,0 +1,145 @@
+@if (open()) {
+  <div class="drawer-backdrop" (click)="onBackdropClick($event)">
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <div class="drawer-header">
+        <h2 class="drawer-title" id="drawer-title">Saved Collections</h2>
+        <button
+          type="button"
+          class="drawer-close"
+          (click)="closed.emit()"
+          aria-label="Close drawer">
+          &times;
+        </button>
+      </div>
+
+      <div class="drawer-body">
+        @if (favoritesService.count() === 0) {
+          <div class="drawer-empty">
+            <p>No collections saved yet.</p>
+            <p class="drawer-empty-hint">Click the star icon on any search result to save it.</p>
+          </div>
+        } @else {
+          <ul class="saved-list">
+            @for (collection of favoritesService.savedCollections(); track collection.collectionUnitId) {
+              <li class="saved-item">
+                <div class="saved-item-info">
+                  <div class="saved-item-title">{{ collection.title }}</div>
+                  <div class="saved-item-meta">
+                    <span>{{ collection.collectionUnitId }}</span>
+                    @if (collection.repository) {
+                      <span class="meta-separator">·</span>
+                      <span>{{ collection.repository }}</span>
+                    }
+                    @if (collection.dateRange) {
+                      <span class="meta-separator">·</span>
+                      <span>{{ collection.dateRange }}</span>
+                    }
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="saved-item-remove"
+                  (click)="removeCollection(collection.collectionUnitId)"
+                  aria-label="Remove {{ collection.title }}">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </li>
+            }
+          </ul>
+
+          <div class="request-section">
+            <h3 class="request-heading">Request These Collections</h3>
+
+            @if (submitSuccess(); as success) {
+              <div class="submit-success">
+                @if (success.emailSent) {
+                  Your request has been sent to the archivist!
+                } @else {
+                  Your request was saved but could not be emailed. Please contact the archives directly.
+                }
+              </div>
+            }
+
+            @if (submitError()) {
+              <div class="submit-error">{{ submitError() }}</div>
+            }
+
+            <form class="request-form" (submit)="$event.preventDefault(); submit()">
+              <div class="form-field">
+                <label class="form-label" for="req-name">Name <span class="required">*</span></label>
+                <input
+                  id="req-name"
+                  type="text"
+                  class="form-input"
+                  [value]="requesterName()"
+                  (input)="requesterName.set($any($event.target).value)"
+                  [disabled]="submitting()"
+                  required />
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="req-email">Email <span class="required">*</span></label>
+                <input
+                  id="req-email"
+                  type="email"
+                  class="form-input"
+                  [value]="requesterEmail()"
+                  (input)="requesterEmail.set($any($event.target).value)"
+                  [disabled]="submitting()"
+                  required />
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="req-phone">Phone</label>
+                <input
+                  id="req-phone"
+                  type="tel"
+                  class="form-input"
+                  [value]="requesterPhone()"
+                  (input)="requesterPhone.set($any($event.target).value)"
+                  [disabled]="submitting()" />
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="req-affiliation">Affiliation</label>
+                <input
+                  id="req-affiliation"
+                  type="text"
+                  class="form-input"
+                  placeholder="e.g., WSU Graduate Student"
+                  [value]="affiliation()"
+                  (input)="affiliation.set($any($event.target).value)"
+                  [disabled]="submitting()" />
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="req-notes">Notes</label>
+                <textarea
+                  id="req-notes"
+                  class="form-input form-textarea"
+                  placeholder="Any details about your research needs..."
+                  rows="3"
+                  [value]="notes()"
+                  (input)="notes.set($any($event.target).value)"
+                  [disabled]="submitting()"></textarea>
+              </div>
+
+              <button
+                type="submit"
+                class="submit-btn"
+                [disabled]="!isFormValid || submitting()">
+                @if (submitting()) {
+                  Submitting...
+                } @else {
+                  Submit Request
+                }
+              </button>
+            </form>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
